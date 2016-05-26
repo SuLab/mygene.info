@@ -6,6 +6,7 @@ from dataload import get_data_folder
 from utils.dataload import (load_start, load_done,
                             tab2dict, tab2list, value_convert,
                             normalized_value, dict_convert, dict_to_list,
+                            tab2dict_iter
                             )
 
 DATA_FOLDER = get_data_folder('entrez')
@@ -274,10 +275,16 @@ class Gene2AccessionParserBase(EntrezParserBase):
     DATAFILE = 'to_be_specified'
     fieldname = 'to_be_specified'
 
+    def format(self,doc):
+        gid, acc = list(doc.items())[0]
+        d = {"_id" : gid}
+        d.update(acc)
+        return d
+
     def load(self, aslist=False):
         load_start(self.datafile)
-        gene2acc = tab2dict(self.datafile, (1, 3, 5, 7), 0, alwayslist=1,
-                            includefn=self.species_filter)
+        gene2acc = tab2dict_iter(self.datafile, (1, 3, 5, 7), 0, alwayslist=1,
+                             includefn=self.species_filter)
 
         def _ff(d):
             out = {
@@ -304,8 +311,13 @@ class Gene2AccessionParserBase(EntrezParserBase):
                 _out = {self.fieldname: _out}
             return _out
 
-        gene2acc = dict_convert(gene2acc, valuefn=_ff)
-        load_done('[%d]' % len(gene2acc))
+        #gene/2acc = dict_convert(gene2acc, valuefn=_ff)
+        cnt = 0
+        for gd in gene2acc:
+            convd = self.format(dict_convert(gd, valuefn=_ff))
+            yield convd
+            cnt += 1
+        load_done('[%d]' % cnt)
 
         if aslist:
             return dict_to_list(gene2acc)
@@ -326,21 +338,22 @@ class Gene2RefseqParser(Gene2AccessionParserBase):
 class Gene2UnigeneParser(EntrezParserBase):
     DATAFILE = 'gene/gene2unigene'
 
+    def format(self,doc):
+        gid, unigene = list(doc.items())[0]
+        return {"_id" : gid, "unigene" : unigene} 
+
     def load(self, aslist=False):
         load_start(self.datafile)
         print()
         geneid_d = get_geneid_d(self.species_li)
-        gene2unigene = tab2dict(self.datafile, (0, 1), 0, alwayslist=0,
-                                includefn=lambda ld: int(ld[0]) in geneid_d)
-        gene_d = {}
-        for gid, unigene in gene2unigene.items():
-            gene_d[gid] = {'unigene': unigene}
-        load_done('[%d]' % len(gene_d))
+        gene2unigene = tab2dict_iter(self.datafile, (0, 1), 0, alwayslist=0,
+                                 includefn=lambda ld: int(ld[0]) in geneid_d)
+        cnt = 0
+        for doc in gene2unigene:
+            yield self.format(doc)
+            cnt += 1
+        load_done('[%d]' % cnt)
 
-        if aslist:
-            return dict_to_list(gene_d)
-        else:
-            return gene_d
 
 
 class Gene2GOParser(EntrezParserBase):
@@ -381,16 +394,13 @@ class Gene2GOParser(EntrezParserBase):
                     out[k] = out[k][0]
             return out
 
-        gene2go = dict_convert(gene2go, valuefn=_ff)
-        gene_d = {}
-        for gid, go in gene2go.items():
+        for gd in gene2go:
+            convd = dict_convert(gd, valuefn=_ff)
+            assert len(list(convd.items())) == 1, "nope: %s" % list(convd.items())
+            gid, go = list(convd.items())[0]
+            gene_d = {}
             gene_d[gid] = {'go': go}
-        load_done('[%d]' % len(gene_d))
-
-        if aslist:
-            return dict_to_list(gene_d)
-        else:
-            return gene_d
+            yield gene_d
 
 
 class Gene2RetiredParser(EntrezParserBase):

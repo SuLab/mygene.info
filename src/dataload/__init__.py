@@ -6,9 +6,13 @@ import types
 import time
 import datetime
 import importlib
+
+from pymongo.errors import DuplicateKeyError, BulkWriteError
+
 from utils.mongo import get_src_conn, get_src_dump
 from biothings.utils.common import get_timestamp, get_random_string, timesofar, dump2gridfs, iter_n
 from config import DATA_SRC_DATABASE, DATA_SRC_MASTER_COLLECTION
+from utils.dataload import list2dict, merge_struct
 
 
 __sources_dict__ = {
@@ -100,11 +104,14 @@ class GeneDocSource(dict):
             if batch:
                 doc_li = []
                 i = 0
-            for _id, doc in genedoc_d.items():
+            for d in genedoc_d:
+                assert len(d) == 1, "Bad length: %s" % repr(d)
+                _id, doc = list(d.items())[0]
                 doc['_id'] = _id
                 _doc = copy.copy(self)
                 _doc.clear()
                 _doc.update(doc)
+                #_doc.update(d)
                 #if validate:
                 #    _doc.validate()
                 if batch:
@@ -127,8 +134,6 @@ class GeneDocSource(dict):
 
         if update_data:
             genedoc_d = genedoc_d or self.load_genedoc()
-            print("genedoc_d mem: %s" % sys.getsizeof(genedoc_d))
-
             print("Uploading to the DB...", end='')
             t0 = time.time()
             # for doc in self.doc_iterator(genedoc_d, batch=False):
@@ -136,7 +141,28 @@ class GeneDocSource(dict):
             #         doc.save()
             for doc_li in self.doc_iterator(genedoc_d, batch=True, step=step):
                 if not test:
-                    self.temp_collection.insert(doc_li, manipulate=False, check_keys=False)
+                    toinsert = len(doc_li)
+                    nbinsert = 0
+                    #print("toinsert: %s " % toinsert,end="", flush=True)
+                    #while doc_li:
+                    try:
+                        bob = self.temp_collection.initialize_unordered_bulk_op()
+                        [bob.insert(d) for d in doc_li]
+                        res = bob.execute()
+                        nbinsert += res["nInserted"]
+                        #print("OK [%s]" % timesofar(t0))
+                    except BulkWriteError as e:
+                        inserted = e.details["nInserted"]
+                        nbinsert += inserted
+                        for err in e.details["writeErrors"]:
+                            doc = err["op"]
+                            existing = self.temp_collection.find_one(doc["_id"])
+                            doc.pop("_id")
+                            merged = merge_struct(doc, existing)
+                            self.temp_collection.save(merged)  # , manipulate=False, check_keys=False)
+                            nbinsert += 1
+                    assert nbinsert == toinsert, "nb %s to %s" % (nbinsert,toinsert)
+
             print('Done[%s]' % timesofar(t0))
             self.switch_collection()
 

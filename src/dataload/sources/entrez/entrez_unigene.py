@@ -7,9 +7,9 @@ __metadata__ = {
 
 
 def load_genedoc(self):
-    parser = Gene2UnigeneParser()
-    parser.set_all_species()
-    gene2unigene = parser.load()
+    self.parser = Gene2UnigeneParser()
+    self.parser.set_all_species()
+    gene2unigene = self.parser.load()
     return gene2unigene
 
 

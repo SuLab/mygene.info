@@ -129,6 +129,53 @@ def alwayslist(value):
         return [value]
 
 
+def merge_struct(v1, v2):
+
+    if isinstance(v1, list):
+        #print("v1 is list ", end="")
+        if isinstance(v2, list):
+            #print("v2 is list -> extend")
+            v1.extend(v2)
+        else:
+            #print("v2 not list -> append")
+            v1.append(v2)
+
+    elif isinstance(v1, dict):
+        assert isinstance(v2, dict)
+        #print("v1 & v2 is dict")
+        for k in list(v1.keys()):
+            #print("v1[%s]" % k)
+            if k in v2:
+                #print("%s is both dict -> merge/update v1[%s],v2[%s]" % (k, k, k))
+                #v1.update(merge(v1[k], v2[k]))
+                v1[k] = merge_struct(v1[k], v2[k])
+            else:
+                #print("%s not in v2 -> update v1 with v2" % k)
+                v1.update(v2)
+        for k in v2:
+            #print("v2[%s]" % k)
+            if k in v1:
+                pass  # already done
+            else:
+                v1[k] = v2[k]
+
+    elif isinstance(v1, str) or isinstance(v1, int) or isinstance(v1, float):
+        if isinstance(v2, str) or isinstance(v2, int) or isinstance(v2, float):
+            if v1 != v2:
+                #print("v1 & v2 not iterable -> list of 2")
+                v1 = [v1, v2]
+            else:
+                pass
+                #print("v1 == v2, skip")
+        else:
+            #print("v2 iterable, reverse merge")
+            return merge_struct(v2, v1)
+    else:
+        raise TypeError("dunno how to merge type %s" % type(v1))
+
+    #print("return %s" % v1)
+    return v1
+
 #===============================================================================
 # File Utility functions
 #===============================================================================
@@ -254,6 +301,40 @@ def tab2dict(datafile, cols, key, alwayslist=False, **kwargs):
         _datafile = datafile
     if os.path.exists(_datafile):
         return list2dict([listitems(ld, *cols) for ld in tabfile_feeder(datafile, **kwargs)], key, alwayslist=alwayslist)
+    else:
+        print('Error: missing "%s". Skipped!' % os.path.split(_datafile)[1])
+        return {}
+
+
+def tab2dict_iter(datafile, cols, key, alwayslist=False, **kwargs):
+    if isinstance(datafile, tuple):
+        _datafile = datafile[0]
+    else:
+        _datafile = datafile
+    if os.path.exists(_datafile):
+        bulk = []
+        prev_id = None
+        for ld in tabfile_feeder(datafile, **kwargs):
+            #print(ld)
+            li = listitems(ld, *cols)
+            #print("key %s len bulk %s prev %s" % (li[key],len(bulk),prev_id))
+            if prev_id == None or (li[key] == prev_id):
+                #print("\t\tfound same")
+                bulk.append(li)
+                prev_id = li[key]
+            else:
+                #print("bulk size: %s" % bulk)
+                di = list2dict(bulk, key, alwayslist=alwayslist)
+                bulk = []
+                # changed key, init next bulk
+                bulk.append(li)
+                prev_id = li[key]
+                #print("on yield: %s" % di)
+                yield di
+        # flush remaining bulk
+        if bulk:
+            di = list2dict(bulk, key, alwayslist=alwayslist)
+            yield di
     else:
         print('Error: missing "%s". Skipped!' % os.path.split(_datafile)[1])
         return {}

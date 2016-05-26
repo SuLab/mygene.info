@@ -103,7 +103,7 @@ def _diff_doc_worker(args):
     return _updates
 
 
-def _diff_doc_inner_worker(b1, b2, ids, fastdiff=False, diff_func=diff_doc):
+def _diff_doc_inner_worker(b1, b2, ids, fastdiff=False, diff_func=full_diff_doc):
     '''if fastdiff is True, only compare the whole doc,
        do not traverse into each attributes.
     '''
