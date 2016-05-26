@@ -43,6 +43,12 @@ class GeneInfoParser(EntrezParserBase):
     '''Parser for NCBI gene_info.gz file.'''
     DATAFILE = 'gene/gene_info.gz'
 
+    def format(self,doc):
+        gid, info = list(doc.items())[0]
+        info['entrezgene'] = int(gid)
+        info["_id"] = gid
+        return info
+
     def load(self, aslist=False):
         '''
         loading ncbi "gene_info" file
@@ -58,7 +64,7 @@ class GeneInfoParser(EntrezParserBase):
 
         '''
         load_start(self.datafile)
-        gene_d = tab2dict(self.datafile, (0, 1, 2, 3, 4, 5, 7, 8, 9), key=1,
+        gene_d = tab2dict_iter(self.datafile, (0, 1, 2, 3, 4, 5, 7, 8, 9), key=1,
                           alwayslist=0, includefn=self.species_filter)
 
         def _ff(d):
@@ -104,20 +110,15 @@ class GeneInfoParser(EntrezParserBase):
                 out[_db] = _id
             return out
 
-        gene_d = value_convert(gene_d, _ff)
 
         # add entrezgene field
-        for geneid in gene_d:
-            d = gene_d[geneid]
-            d['entrezgene'] = int(geneid)
-            gene_d[geneid] = d
+        cnt = 0
+        for d in gene_d:
+            d = value_convert(d, _ff)
+            yield self.format(d)
+            cnt += 1
 
-        load_done('[%d]' % len(gene_d))
-
-        if aslist:
-            return dict_to_list(gene_d)
-        else:
-            return gene_d
+        load_done('[%d]' % cnt)
 
 
 def get_geneid_d(species_li=None, load_cache=True, save_cache=True):

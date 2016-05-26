@@ -19,9 +19,9 @@ __metadata__ = {
 
 
 def load_genedoc(self):
-    parser = GeneInfoParser()
-    parser.set_all_species()
-    genedoc_d = parser.load()
+    self.parser = GeneInfoParser()
+    self.parser.set_all_species()
+    genedoc_d = self.parser.load()
     return genedoc_d
 
 

@@ -141,16 +141,16 @@ class GeneDocSource(dict):
             #         doc.save()
             for doc_li in self.doc_iterator(genedoc_d, batch=True, step=step):
                 if not test:
+                    tinner = time.time()
                     toinsert = len(doc_li)
                     nbinsert = 0
-                    #print("toinsert: %s " % toinsert,end="", flush=True)
-                    #while doc_li:
+                    print("Inserting %s records ... " % toinsert,end="", flush=True)
                     try:
                         bob = self.temp_collection.initialize_unordered_bulk_op()
                         [bob.insert(d) for d in doc_li]
                         res = bob.execute()
                         nbinsert += res["nInserted"]
-                        #print("OK [%s]" % timesofar(t0))
+                        print("OK [%s]" % timesofar(tinner))
                     except BulkWriteError as e:
                         inserted = e.details["nInserted"]
                         nbinsert += inserted
