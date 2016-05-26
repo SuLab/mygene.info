@@ -94,6 +94,5 @@ SOURCE_TRANSLATORS = {
 DATA_SRC_MASTER_COLLECTION = 'src_master'   # for metadata of each src collections
 DATA_SRC_DUMP_COLLECTION = 'src_dump'       # for src data download information
 DATA_SRC_BUILD_COLLECTION = 'src_build'     # for src data build information
-DATA_SRC_DATABASE = 'genedoc_src'
 
 DATA_TARGET_MASTER_COLLECTION = 'db_master'

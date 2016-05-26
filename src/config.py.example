@@ -30,6 +30,7 @@ GA_RUN_IN_PROD = False
 
 DATA_SRC_SERVER = 'localhost'
 DATA_SRC_PORT = 27117
+DATA_SRC_DATABASE = 'genedoc_src'
 
 DATA_TARGET_SERVER = 'localhost'
 DATA_TARGET_PORT = 27117
