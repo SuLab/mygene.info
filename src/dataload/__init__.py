@@ -139,9 +139,9 @@ class GeneDocSource(dict):
             # for doc in self.doc_iterator(genedoc_d, batch=False):
             #     if not test:
             #         doc.save()
+            tinner = time.time()
             for doc_li in self.doc_iterator(genedoc_d, batch=True, step=step):
                 if not test:
-                    tinner = time.time()
                     toinsert = len(doc_li)
                     nbinsert = 0
                     print("Inserting %s records ... " % toinsert,end="", flush=True)
@@ -154,14 +154,26 @@ class GeneDocSource(dict):
                     except BulkWriteError as e:
                         inserted = e.details["nInserted"]
                         nbinsert += inserted
+                        print("Fixing %d records " % len(e.details["writeErrors"]),end="",flush=True)
+                        ids = [d["op"]["_id"] for d in e.details["writeErrors"]]
+                        # build hash of existing docs
+                        docs = self.temp_collection.find({"_id" : {"$in" : ids}})
+                        hdocs = {}
+                        for doc in docs:
+                            hdocs[doc["_id"]] = doc
+                        bob2 = self.temp_collection.initialize_unordered_bulk_op()
                         for err in e.details["writeErrors"]:
                             doc = err["op"]
-                            existing = self.temp_collection.find_one(doc["_id"])
+                            existing = hdocs[doc["_id"]]
                             doc.pop("_id")
                             merged = merge_struct(doc, existing)
-                            self.temp_collection.save(merged)  # , manipulate=False, check_keys=False)
+                            bob2.find({"_id" : doc["_id"]}).update_one({"$set" : merged})
                             nbinsert += 1
+                        res = bob2.execute()
+                        print("OK [%s]" % timesofar(tinner))
                     assert nbinsert == toinsert, "nb %s to %s" % (nbinsert,toinsert)
+                    # end of loop so it counts the time spent in doc_iterator
+                    tinner = time.time()
 
             print('Done[%s]' % timesofar(t0))
             self.switch_collection()
