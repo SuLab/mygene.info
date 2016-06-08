@@ -52,37 +52,133 @@ def load_uniprot():
     DATAFILE = os.path.join(DATA_FOLDER, 'idmapping_selected.tab.gz')
     load_start(DATAFILE)
     t0 = time.time()
-    xli = []
-    for ld in tabfile_feeder(DATAFILE, header=1, assert_column_no=VALID_COLUMN_NO):
-        ld = listitems(ld, *(0, 1, 2, 18))    # UniProtKB-AC UniProtKB-ID GeneID Ensembl(Gene)
-        for value in dupline_seperator(dupline=ld,
-                                       dup_idx=[2, 3],   # GeneID and EnsemblID columns may have duplicates
-                                       dup_sep='; '):
-            value = list(value)
-            value[1] = get_uniprot_section(value[1])
-            value = tuple(value)
-            xli.append(value)
+    ensembl2geneid = {}
+    remains = []
 
-    ensembl2geneid = list2dict([(x[3], x[2]) for x in xli if x[2] != '' and x[3] != ''], 0, alwayslist=True)
-    xli2 = []
-    for uniprot_acc, section, entrez_id, ensembl_id in xli:
+    def transcode(xli,default_to_ensembl_id=False,transcode=False):
+        xli2 = []
+        uniprot_acc, section, entrez_id, ensembl_id = xli
+        print("uniprot_acc: %s, section: %s, entrez_id: %s, ensembl_id: %s" % (repr(uniprot_acc), repr(section),
+            repr(entrez_id), repr(ensembl_id)))
         if entrez_id:
             xli2.append((uniprot_acc, section, entrez_id))
         elif ensembl_id:
-            entrez_id = ensembl2geneid.get(ensembl_id, None)
-            if entrez_id:
+            #if not transcode:
+            #    raise KeyError(ensembl_id)
+            try:
+                entrez_id = ensembl2geneid[ensembl_id]
+                if not transcode:
+                    print("transcoded %s to %s but not for now :)" % (repr(ensembl_id),repr(entrez_id)))
+                    raise KeyError(ensembl_id)
                 #if ensembl_id can be mapped to entrez_id
                 for _eid in entrez_id:
                     xli2.append((uniprot_acc, section, _eid))
-            else:
-                #otherwise, just use ensembl_id
-                xli2.append((uniprot_acc, section, ensembl_id))
+            except KeyError:
+                if default_to_ensembl_id:
+                    xli2.append((uniprot_acc, section, ensembl_id))
+                else:
+                    raise
+        print("xli2: %s" % repr(xli2))
+        return xli2
 
-    gene2uniprot = list2dict(list_nondup(xli2), 2, alwayslist=True)
-    gene2uniprot = value_convert(gene2uniprot, _dict_convert, traverse_list=False)
-    load_done('[%d, %s]' % (len(gene2uniprot), timesofar(t0)))
+    def transform(xli2):
+        gene2uniprot = list2dict(list_nondup(xli2), 2, alwayslist=True)
+        gene2uniprot = value_convert(gene2uniprot, _dict_convert, traverse_list=False)
+        gid, uniprot = list(gene2uniprot.items())[0] 
+        docs = []
+        for gid, uniprot in gene2uniprot.items():
+            doc = {"_id" : gid}
+            doc.update(uniprot)
+            docs.append(doc)
+        return docs
 
-    return gene2uniprot
+    for ld in tabfile_feeder(DATAFILE, header=1, assert_column_no=VALID_COLUMN_NO):
+        xlis = []
+        ld = listitems(ld, *(0, 1, 2, 18))    # UniProtKB-AC UniProtKB-ID GeneID Ensembl(Gene)
+        #cnt = 0
+        for value in dupline_seperator(dupline=ld,
+                                       dup_idx=[2, 3],   # GeneID and EnsemblID columns may have duplicates
+                                       dup_sep='; '):
+            #print("on dumle sep")
+            value = list(value)
+            value[1] = get_uniprot_section(value[1])
+            value = tuple(value)
+            #print(" %s %s" % (cnt,value))
+            #cnt += 1
+            xlis.append(value)
+
+        for xli in xlis:
+            # feed mapping
+            if xli[2] != '' and xli[3] != '':
+                ensembl2geneid.setdefault(xli[3],[]).append(xli[2])
+
+            try:
+                # postpone ensemblid->entrezid resolution while parsing uniprot as the
+                # full transcodification dict is only correct at the end.
+                # ex:
+                #     1. UniprotID-A    EntrezID-A  EnsemblID
+                #     2. UniprotID-B                EnsemblID
+                #     3. UniprotID-C    EntrezID-B  EnsemblID
+                #
+                #     UniprotID-B should associated to both EntrezID-A and EntrezID-B
+                #     but we need to read up to line 3 to do so
+                xli2 = transcode(xli,transcode=False)
+                if not xli2:
+                    continue
+                docs = transform(xli2)
+                print("docs: %s" % repr(docs))
+                for doc in docs:
+                    yield doc
+            except KeyError:
+                #print("in remain")
+                print("remains.append %s" % repr(xli))
+                remains.append(xli)
+
+    print("remains: %s" % len(remains))
+    import pickle
+    pickle.dump(ensembl2geneid,open("ensembl2geneid","wb"))
+    for remain in remains:
+        try:
+            # now transcode with what we have
+            xli2 = transcode(remain,default_to_ensembl_id=True,transcode=True)
+            if not xli2:
+                continue
+            docs = transform(xli2)
+            print("fixed %s -> %s" % (repr(remain),repr(docs)))
+            for doc in docs:
+                yield doc
+        except KeyError:
+            print("nothing for %s" % repr(remain))
+
+    print("remains: %s" % len(remains))
+    import pickle
+    pickle.dump(remains,open("remains","wb"))
+
+    #print("onela read 1 %s" % timesofar(t0))
+    #ensembl2geneid = list2dict([(x[3], x[2]) for x in xli if x[2] != '' and x[3] != ''], 0, alwayslist=True)
+    #print("onela after read2dict %s" % timesofar(t0))
+    #xli2 = []
+    #for uniprot_acc, section, entrez_id, ensembl_id in xli:
+    #    if entrez_id:
+    #        xli2.append((uniprot_acc, section, entrez_id))
+    #    elif ensembl_id:
+    #        entrez_id = ensembl2geneid.get(ensembl_id, None)
+    #        if entrez_id:
+    #            #if ensembl_id can be mapped to entrez_id
+    #            for _eid in entrez_id:
+    #                xli2.append((uniprot_acc, section, _eid))
+    #        else:
+    #            #otherwise, just use ensembl_id
+    #            xli2.append((uniprot_acc, section, ensembl_id))
+
+    #print("onela read 2 %s" % timesofar(t0))
+    #gene2uniprot = list2dict(list_nondup(xli2), 2, alwayslist=True)
+    #print("onela after list2dict %s" % timesofar(t0))
+    #gene2uniprot = value_convert(gene2uniprot, _dict_convert, traverse_list=False)
+    #print("onela after value_convert %s" % timesofar(t0))
+    #load_done('[%d, %s]' % (len(gene2uniprot), timesofar(t0)))
+
+    #return gene2uniprot
 
 
 def load_x(idx, fieldname, cvt_fn=None):
@@ -113,7 +209,6 @@ def load_x(idx, fieldname, cvt_fn=None):
                         xli2.append((_eid, x_value))
                 else:
                     xli2.append((ensembl_id, x_value))
-
     gene2x = list2dict(list_nondup(xli2), 0)
     fn = lambda value: {fieldname: sorted(value) if isinstance(value, list) else value}
     gene2x = value_convert(gene2x, fn, traverse_list=False)

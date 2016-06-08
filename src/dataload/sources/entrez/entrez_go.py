@@ -16,21 +16,17 @@ def get_mapping(self=None):
     mapping = {
         "go": {
             "dynamic": False,
-            #"path": "just_name",
             "properties": {
                 "MF": {
                     "dynamic": False,
-                    #"path": "just_name",
                     "properties": {
                         "term": {
                             "type": "string",
-                            #"index": "no",
                             "include_in_all": False
                         },
                         "id": {
                             "type": "string",
                             "analyzer": "string_lowercase",
-                            #"index_name": "go",
                         },
                         "evidence": {
                             "type": "string",
@@ -44,17 +40,14 @@ def get_mapping(self=None):
                 },
                 "CC": {
                     "dynamic": False,
-                    #"path": "just_name",
                     "properties": {
                         "term": {
                             "type": "string",
-                            #"index": "no",
                             "include_in_all": False
                         },
                         "id": {
                             "type": "string",
                             "analyzer": "string_lowercase",
-                            #"index_name": "go",
                         },
                         "evidence": {
                             "type": "string",
@@ -68,17 +61,14 @@ def get_mapping(self=None):
                 },
                 "BP": {
                     "dynamic": False,
-                    #"path": "just_name",
                     "properties": {
                         "term": {
                             "type": "string",
-                            #"index": "no",
                             "include_in_all": False
                         },
                         "id": {
                             "type": "string",
                             "analyzer": "string_lowercase",
-                            #"index_name": "go",
                         },
                         "evidence": {
                             "type": "string",

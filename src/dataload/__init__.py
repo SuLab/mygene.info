@@ -104,14 +104,11 @@ class GeneDocSource(dict):
             if batch:
                 doc_li = []
                 i = 0
-            for d in genedoc_d:
-                assert len(d) == 1, "Bad length: %s" % repr(d)
-                _id, doc = list(d.items())[0]
+            for _id, doc in genedoc_d.items():
                 doc['_id'] = _id
                 _doc = copy.copy(self)
                 _doc.clear()
                 _doc.update(doc)
-                #_doc.update(d)
                 #if validate:
                 #    _doc.validate()
                 if batch:
@@ -163,11 +160,17 @@ class GeneDocSource(dict):
                             hdocs[doc["_id"]] = doc
                         bob2 = self.temp_collection.initialize_unordered_bulk_op()
                         for err in e.details["writeErrors"]:
-                            doc = err["op"]
-                            existing = hdocs[doc["_id"]]
-                            doc.pop("_id")
-                            merged = merge_struct(doc, existing)
-                            bob2.find({"_id" : doc["_id"]}).update_one({"$set" : merged})
+                            errdoc = err["op"]
+                            existing = hdocs[errdoc["_id"]]
+                            print("existing: %s ....... " % repr(existing),end="")
+                            errdoc.pop("_id")
+                            merged = merge_struct(errdoc, existing)
+                            print("merged: %s" % repr(merged))
+                            bob2.find({"_id" : errdoc["_id"]}).update_one({"$set" : merged})
+                            # update previously fetched doc. if several errors are about the same doc id,
+                            # we would't merged things properly without an updated document
+                            hdocs[errdoc["_id"]] = merged
+                            #hdocs[errdoc["_id"]] = self.temp_collection.find_one({"_id" : errdoc["_id"]})
                             nbinsert += 1
                         res = bob2.execute()
                         print("OK [%s]" % timesofar(tinner))

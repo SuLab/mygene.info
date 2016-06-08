@@ -362,7 +362,7 @@ class Gene2GOParser(EntrezParserBase):
 
     def load(self, aslist=False):
         load_start(self.datafile)
-        gene2go = tab2dict(self.datafile, (1, 2, 3, 4, 5, 6, 7), 0, alwayslist=1,
+        gene2go = tab2dict_iter(self.datafile, (1, 2, 3, 4, 5, 6, 7), 0, alwayslist=1,
                            includefn=self.species_filter)
         category_d = {'Function': 'MF',
                       'Process': 'BP',

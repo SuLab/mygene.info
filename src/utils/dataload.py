@@ -141,7 +141,7 @@ def merge_struct(v1, v2):
             v1.append(v2)
 
     elif isinstance(v1, dict):
-        assert isinstance(v2, dict)
+        assert isinstance(v2, dict),"v2 %s not a dict (v1: %s)" % (v2,v1)
         #print("v1 & v2 is dict")
         for k in list(v1.keys()):
             #print("v1[%s]" % k)
