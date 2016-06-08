@@ -133,9 +133,6 @@ class GeneDocSource(dict):
             genedoc_d = genedoc_d or self.load_genedoc()
             print("Uploading to the DB...", end='')
             t0 = time.time()
-            # for doc in self.doc_iterator(genedoc_d, batch=False):
-            #     if not test:
-            #         doc.save()
             tinner = time.time()
             for doc_li in self.doc_iterator(genedoc_d, batch=True, step=step):
                 if not test:
@@ -162,10 +159,8 @@ class GeneDocSource(dict):
                         for err in e.details["writeErrors"]:
                             errdoc = err["op"]
                             existing = hdocs[errdoc["_id"]]
-                            print("existing: %s ....... " % repr(existing),end="")
                             errdoc.pop("_id")
                             merged = merge_struct(errdoc, existing)
-                            print("merged: %s" % repr(merged))
                             bob2.find({"_id" : errdoc["_id"]}).update_one({"$set" : merged})
                             # update previously fetched doc. if several errors are about the same doc id,
                             # we would't merged things properly without an updated document
