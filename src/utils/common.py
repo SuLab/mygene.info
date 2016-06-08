@@ -232,28 +232,23 @@ def newer(t0, t1, format='%Y%m%d'):
 
 
 def hipchat_msg(msg, color='yellow', message_format='text'):
-    import httplib2
+    import requests
     from config import HIPCHAT_CONFIG
     if not HIPCHAT_CONFIG:
         return
 
-    h = httplib2.Http()
-    url = 'https://api.hipchat.com/v1/rooms/message?format=json&auth_token=' + HIPCHAT_CONFIG['token']
-    headers = {'content-type': 'application/x-www-form-urlencoded'}
-    color = 'yellow'
+    url = 'https://sulab.hipchat.com/v2/room/{roomid}/notification?auth_token={token}'.format(**HIPCHAT_CONFIG)
+    headers = {'content-type': 'application/json'}
     _msg = msg.lower()
     for keyword in ['fail', 'error']:
         if _msg.find(keyword) != -1:
             color = 'red'
             break
-    params = 'room_id={}&from={}&message={}&color={}&message_format={}'
-    params = params.format(HIPCHAT_CONFIG['roomid'],
-                           HIPCHAT_CONFIG['from'],
-                           msg,
-                           color,
-                           message_format)
-    res, con = h.request(url, 'POST', params, headers=headers)
-    assert res.status == 200, (str(res), con)
+    params = {"from" : HIPCHAT_CONFIG['from'], "message" : msg,
+              "color" : color, "message_format" : message_format}
+    res = requests.post(url,json.dumps(params), headers=headers)
+    # hipchat replis with "no content"
+    assert res.status_code == 200 or res.status_code == 204, (str(res), res.text)
 
 
 class dotdict(dict):
