@@ -74,10 +74,10 @@ FILE_LIST = {
 def _get_ascp_cmdline(url):
     '''
     ~/opt/aspera_connect/bin/ascp -QT -l640M -i  \
-      ~/opt/aspera_connect/etc/asperaweb_id_dsa.putty anonftp@ftp.ncbi.nih.gov:/refseq/H_sapiens/mRNA_Prot/human.rna.gbff.gz .
+      ~/opt/aspera_connect/etc/asperaweb_id_dsa.openssh anonftp@ftp.ncbi.nih.gov:/refseq/H_sapiens/mRNA_Prot/human.rna.gbff.gz .
     '''
     execpath = ASCP_ROOT + '/bin/ascp'
-    keypath = ASCP_ROOT + '/etc/asperaweb_id_dsa.putty'
+    keypath = ASCP_ROOT + '/etc/asperaweb_id_dsa.openssh'
     cmd = execpath + ' -QT -l640M -i ' + keypath + ' anonftp@'
     _url = url[6:]   # remove 'ftp://'
     _url = _url.replace('.gov/', '.gov:/')

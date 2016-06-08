@@ -32,7 +32,7 @@ class MainHandler(BiothingHandler):
         if INCLUDE_DOCS:
             self.render(os.path.join(DOCS_STATIC_PATH, 'index.html'))
 
-DEMO_STATIC_FILE = '../../docs/demo/index.html'
+DEMO_STATIC_FILE = '../docs/demo/index.html'
 class DemoHandler(BiothingHandler):
     def get(self):
         with open(DEMO_STATIC_FILE,'r') as demo_file:

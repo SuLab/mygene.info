@@ -26,7 +26,6 @@ def get_mapping(self):
                 "id": {
                     "type": "long",
                     "include_in_all": False,
-                    "index": "no",
                     "copy_to": "homologene"
                 }
             }

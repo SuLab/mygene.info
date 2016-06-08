@@ -64,7 +64,7 @@ NOSETEST_SETTINGS = "config"
 HOST_ENVAR_NAME = "MG_HOST"
 
 # translate data source
-# (keys will be used as regex pattern)
+# (keys will be used as regex pattern, case-ignored)
 # /!\ values can be evaled as regex by ES
 # so special chars may need escape.
 # Ex: "refseq.\*" should be escaped 2 times,
@@ -76,7 +76,12 @@ SOURCE_TRANSLATORS = {
     "accession:":   r"accession.\\\*:",
     "reporter:":    r"reporter.\\\*:",
     "interpro:":    r"interpro.\\\*:",
-    # "GO:":          r"GO.\\\*:",
+    # GO:xxxxx looks like a ES raw query, so just look for 
+    # the term as a string in GO's ID (note: searching every keys
+    # will raise an error because pubmed key is a int and we're 
+    # searching with a string term.
+    "GO:":          r"go.\\\*.id:go\\\:",
+    #"GO:":          r"go.\\\*:go.",
     "homologene:":  r"homologene.\\\*:",
     "reagent:":     r"reagent.\\\*:",
     "uniprot:":     r"uniprot.\\\*:",

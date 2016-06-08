@@ -179,6 +179,9 @@ class ESQuery(ESQuery):
             metadata.update(mapping[self._doc_type]['_meta'])
         metadata['genome_assembly'] = GENOME_ASSEMBLY
         metadata['taxonomy'] = TAXONOMY
+        if "source" not in metadata:
+             # occurs when loaded from scratch, not from a change/diff file
+            metadata["source"] = None
         return metadata
 
     def get_gene(self, geneid, **kwargs):

@@ -78,7 +78,6 @@ def get_mapping(self=None):
 
     platform_mapping = {
         "dynamic": False,
-        #"path": "just_name",
         "properties": {
             "id": {
                 "type": "string",
@@ -95,7 +94,6 @@ def get_mapping(self=None):
     mapping = {
         "reagent": {
             "dynamic": False,
-            #"path": "just_name",
             "properties": {}
         }
     }

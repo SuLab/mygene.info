@@ -46,6 +46,7 @@ DATA_ARCHIVE_ROOT = '/path/to/data'
 
 # Path to ASCP install directory
 # (see "bin" and "etc" are). See http://asperasoft.com
+# http://download.asperasoft.com/download/sw/connect/3.6.2/aspera-connect-3.6.2.117442-linux-64.tar.gz
 ASCP_ROOT = '~/opt/aspera_connect'
 
 # fill with "host", "username" and "key" keys
