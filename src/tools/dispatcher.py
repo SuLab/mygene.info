@@ -75,13 +75,13 @@ class GeneDocDispatcher:
                     if hipchat_msg:
                         msg += '<a href="http://su07:8000/log/dump/{}">dump log</a>'.format(src)
                         msg += '<a href="http://su07:8000/log/upload/{}">upload log</a>'.format(src)
-                        hipchat_msg(msg, message_format='html')
+                        hipchat_msg(msg, message_format='html',color="green")
                     source_upload_success.send(self, src_name=src)
                 else:
                     msg = 'Dispatcher:  "{}" uploader failed with code {} (time: {}s)'.format(src, returncode, t1)
                     print(msg)
                     if hipchat_msg:
-                        hipchat_msg(msg)
+                        hipchat_msg(msg,color="red")
                     source_upload_failed.send(self, src_name=src)
 
         for src in jobs_finished:
@@ -111,12 +111,14 @@ class GeneDocDispatcher:
             t = timesofar(t0)
             if returncode == 0:
                 msg = 'Dispatcher:  "{}" builder finished successfully with code {} (time: {})'.format(config, returncode, t)
+                color = "green"
             else:
                 msg = 'Dispatcher:  "{}" builder failed successfully with code {} (time: {})'.format(config, returncode, t)
+                color = "red"
             print(msg)
             if hipchat_msg:
                 msg += '<a href="http://su07:8000/log/build/{}">build log</a>'.format(config)
-                hipchat_msg(msg, message_format='html')
+                hipchat_msg(msg, message_format='html',color=color)
 
             assert returncode == 0, "Subprocess failed. Check error above."
         genedoc_merged.send(self)
@@ -130,12 +132,14 @@ class GeneDocDispatcher:
             t = timesofar(t0)
             if returncode == 0:
                 msg = 'Dispatcher:  "{}" syncer finished successfully with code {} (time: {})'.format(config, returncode, t)
+                color = "green"
             else:
                 msg = 'Dispatcher:  "{}" syncer failed successfully with code {} (time: {})'.format(config, returncode, t)
+                color = "red"
             print(msg)
             if hipchat_msg:
                 msg += '<a href="http://su07:8000/log/sync/{}">sync log</a>'.format(config)
-                hipchat_msg(msg, message_format='html')
+                hipchat_msg(msg, message_format='html',color=color)
 
             assert returncode == 0, "Subprocess failed. Check error above."
 
