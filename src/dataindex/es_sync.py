@@ -230,14 +230,6 @@ def main():
         if code != -1:
             # aborted when code == -1
             _meta = {'_meta': meta}
-            # somehow when only update "_meta", "_timestamp" get empty
-            # so add "_timestamp" explicitly here. This is an ES bug.
-            _meta['_timestamp'] = {
-                "path": "_timestamp",
-                "store": True,
-                "enabled": True
-            }
-            #esi.update_mapping_meta(_meta)
             print(esi.conn.indices.put_mapping(esi.ES_INDEX_TYPE, _meta, [esi.ES_INDEX_NAME]))
             esi.post_verify_changes(changes)
 

@@ -149,6 +149,7 @@ class DataBuilder():
             _db = get_target_db()
             target_collection_name = target_name or self._get_target_name()
             self.target.target_collection = _db[target_collection_name]
+            print("Target: %s" % repr(target_collection_name))
         elif self.target.name == 'es':
             # self.target.target_esidxer.ES_INDEX_NAME = 'genedoc'+'_'+self._build_config['name']
             self.target.target_esidxer.ES_INDEX_NAME = target_name or self._get_target_name()
@@ -162,14 +163,19 @@ class DataBuilder():
         src_master = get_src_master(self.src.client)
         self.src_master = dict([(src['_id'], src) for src in list(src_master.find())])
 
-    def validate_src_collections(self):
-        collection_list = set(self.src.collection_names())
-        self.get_src_master()
+    def validate_src_collections(self,collection_list=None):
+        if not collection_list:
+            collection_list = set(self.src.collection_names())
+            self.get_src_master()
+            build_conf_src = self._build_config['sources']
+        else:
+            build_conf_src = collection_list
+
+        print("Sources: %s" % repr(build_conf_src))
         if self._build_config:
-            for src in self._build_config['sources']:
+            for src in build_conf_src:
                 assert src in self.src_master, '"%s" not found in "src_master"' % src
                 assert src in collection_list, '"%s" not an existing collection in "%s"' % (src, self.src.name)
-            self.prepare_target()
         else:
             raise ValueError('"build_config" cannot be empty.')
 
@@ -267,15 +273,18 @@ class DataBuilder():
             return self._idmapping_d_cache[src]
             #raise ValueError('cannot load "idmapping_d" for "%s"' % src)
 
-    def merge(self, step=100000, restart_at=0):
+    def merge(self, step=100000, restart_at=0,sources=None,target=None):
         t0 = time.time()
-        self.validate_src_collections()
+        self.validate_src_collections(sources)
+        self.prepare_target(target_name=target)
         self.log_building_start()
         try:
             if self.using_ipython_cluster:
+                if sources:
+                    raise NotImplemented("merge speficic sources not supported when using parallel")
                 self._merge_ipython_cluster(step=step)
             else:
-                self._merge_local(step=step, restart_at=restart_at)
+                self._merge_local(step=step, restart_at=restart_at,src_collection_list=sources)
 
             if self.target.name == 'es':
                 print("Updating metadata...", end=' ')
@@ -457,8 +466,8 @@ class DataBuilder():
             lview.shutdown()
             print('Done.')
 
-    def _merge_local(self, step=100000, restart_at=0):
-        if restart_at == 0:
+    def _merge_local(self, step=100000, restart_at=0, src_collection_list=None):
+        if restart_at == 0 and src_collection_list is None:
             self.target.drop()
             self.target.prepare()
             geneid_set = self.make_genedoc_root()
@@ -469,7 +478,8 @@ class DataBuilder():
             geneid_set = set(self.target.get_id_list())
             print('\t', len(geneid_set))
 
-        src_collection_list = self._build_config['sources']
+        if not src_collection_list:
+            src_collection_list = self._build_config['sources']
         src_cnt = 0
         for collection in src_collection_list:
             if collection in ['entrez_gene', 'ensembl_gene']:
@@ -567,7 +577,6 @@ class DataBuilder():
         def worker(doc_li):
             conn = pymongo.MongoClient(server, port)
             target_collection = conn[database][collection_name]
-            print("len(doc_li): {}".format(len(doc_li)))
             t0 = time.time()
             for doc in doc_li:
                 __id = doc.pop('_id')
@@ -665,31 +674,13 @@ class DataBuilder():
         mapping = {"properties": mapping,
                    "dynamic": False}
         if enable_timestamp:
-            #mapping['_timestamp'] = {
-            #    "enabled": True,
-            #    "store": True,        # set store to true, so it can be returned with the doc
-            #    "path": "_timestamp"
-            #}
-            mapping["properties"]["timestamp"] = {
-                "include_in_all": False,
-                "type": "date"
+            mapping['_timestamp'] = {
+                "enabled": True,
             }
         #allow source Compression
         #Note: no need of source compression due to "Store Level Compression"
         #mapping['_source'] = {'compress': True,}
         #                      'compress_threshold': '1kb'}
-
-        # #updating metadata
-        # _meta = {}
-        # src_version = self.get_src_version()
-        # src_build_stats = self.get_last_src_build_stats()
-        # if src_version:
-        #     _meta['src_version'] = src_version
-        # if src_build_stats:
-        #     _meta['stats'] = src_build_stats
-        # if _meta:
-        #     mapping['_meta'] = _meta
-
         return mapping
 
     def update_mapping_meta(self):
@@ -772,7 +763,7 @@ class DataBuilder():
         else:
             print("Error: target collection is not ready yet or failed to build.")
 
-    def build_index2(self, build_config='mygene_allspecies', last_build_idx=-1, use_parallel=False, es_host=None, es_index_name=None):
+    def build_index2(self, build_config='mygene_allspecies', last_build_idx=-1, use_parallel=False, es_host=None, es_index_name=None, noconfirm=False):
         """Build ES index from last successfully-merged mongodb collection.
             optional "es_host" argument can be used to specified another ES host, otherwise default ES_HOST.
             optional "es_index_name" argument can be used to pass an alternative index name, otherwise same as mongodb collection name
@@ -822,11 +813,11 @@ class DataBuilder():
         if build_config == 'mygene_allspecies':
             es_idxer.number_of_shards = 10   # default 5
         es_idxer.check()
-        if ask("Continue to build ES index?") == 'Y':
+        if noconfirm or ask("Continue to build ES index?") == 'Y':
             es_idxer.use_parallel = use_parallel
             #es_idxer.s = 609000
             if es_idxer.exists_index(es_idxer.ES_INDEX_NAME):
-                if ask('Index "{}" exists. Delete?'.format(es_idxer.ES_INDEX_NAME)) == 'Y':
+                if noconfirm or ask('Index "{}" exists. Delete?'.format(es_idxer.ES_INDEX_NAME)) == 'Y':
                     es_idxer.conn.indices.delete(es_idxer.ES_INDEX_NAME)
                 else:
                     print("Abort.")
@@ -859,12 +850,20 @@ def main():
     else:
         config = 'mygene_allspecies'
     use_parallel = '-p' in sys.argv
+    sources = None  # will build all sources
+    target = None   # will generate a new collection name
+    # "target_col:src_col1,src_col2" will specifically merge src_col1
+    # and src_col2 into existing target_col (instead of merging everything)
+    if not use_parallel and len(sys.argv) > 2:
+        target,tmp = sys.argv[2].split(":")
+        sources = tmp.split(",")
 
     t0 = time.time()
     bdr = DataBuilder(backend='mongodb')
     bdr.load_build_config(config)
     bdr.using_ipython_cluster = use_parallel
-    bdr.merge()
+    bdr.merge(sources=sources,target=target)
+
     print("Finished.", timesofar(t0))
 
 

@@ -77,7 +77,7 @@ def main():
             print('>"{}">>>>>>'.format(_conf))
             bdr.build_index2(_conf,
                              es_index_name=options.es_index_name,
-                             es_host=es_host)
+                             es_host=es_host,noconfirm=options.noconfirm)
             print('<<<<<<"{}"...done. {}'.format(_conf, timesofar(t0)))
 
         print('=' * 20)

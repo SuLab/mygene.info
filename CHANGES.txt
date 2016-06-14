@@ -4,4 +4,7 @@ API v3:
   Eg. fields=refseq.rna parameter will generate the following structure: ["refseq"]["rna"] ...  by default
       if dotfield=true is also passed, then the following structure will be used: ["refseq.rna"]
 - refseq version can now be queried: /query?q=NM_001798.4 and /query?q=NM_001798 will lead to the same result
-- "exons" dict structure changed: 
+- "exons" dict structure changed: now "exons" is a list of exons records, with "transcript" key containing the refseqID
+  (refseqID was previously used as key)
+- "reporter" source should be queried with "reporter:<some_string>" as some fields content in "reporter"
+  are just integer and could be confused with gene ID

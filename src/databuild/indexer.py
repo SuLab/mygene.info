@@ -38,7 +38,7 @@ def build_index(config, use_parallel=True, noconfirm=False):
         print("ES target: {}/{}/{}".format(es_server,
                                            es_idxer.ES_INDEX_NAME,
                                            es_idxer.ES_INDEX_TYPE))
-        if ask("Continue?") == 'Y':
+        if noconfirm or ask("Continue?") == 'Y':
             #es_idxer.s = 609000
             #es_idxer.conn.indices.delete_index(es_idxer.ES_INDEX_NAME)
             es_idxer.create_index()

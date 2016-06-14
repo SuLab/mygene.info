@@ -234,7 +234,7 @@ def newer(t0, t1, format='%Y%m%d'):
 def hipchat_msg(msg, color='yellow', message_format='text'):
     import requests
     from config import HIPCHAT_CONFIG
-    if not HIPCHAT_CONFIG:
+    if not HIPCHAT_CONFIG or not HIPCHAT_CONFIG.get("token"):
         return
 
     url = 'https://sulab.hipchat.com/v2/room/{roomid}/notification?auth_token={token}'.format(**HIPCHAT_CONFIG)

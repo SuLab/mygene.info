@@ -22,16 +22,14 @@ def get_mapping(self):
                     "type": "string",
                     "index": "no",
                     "include_in_all": False,
-                    #"enabled": False,    #discard genomic for indexing
                 },
                 "rna": {
                     "type": "string",
-                    "analyzer": "string_lowercase",
-                    #"index_name": "accession",
+                    "analyzer": "refseq_analyzer",
                 },
                 'protein': {
                     "type": "string",
-                    "analyzer": "string_lowercase",
+                    "analyzer": "refseq_analyzer",
                     #"index_name": "accession",
                 }
             }

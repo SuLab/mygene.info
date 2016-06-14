@@ -18,7 +18,7 @@ def load_exons_for_species(species, exons_key='exons'):
     t0 = time.time()
 
     refseq2gene = tab2dict(reflink_file, (2, 6), 0, alwayslist=False)
-    ref2exons = []
+    ref2exons = {}
     for ld in tabfile_feeder(refflat_file, header=0):
         refseq = ld[1]
         chr = ld[2]
@@ -27,7 +27,8 @@ def load_exons_for_species(species, exons_key='exons'):
         exons = list(zip([int(x) for x in ld[9].split(',') if x],
                      [int(x) for x in ld[10].split(',') if x]))
         assert len(exons) == int(ld[8]), (len(exons), int(ld[8]))
-        ref2exons.append((refseq, {
+        ref2exons.setdefault(refseq,[]).append({
+            'transcript' : refseq,
             'chr': chr,
             'strand': -1 if ld[3] == '-' else 1,
             'txstart': int(ld[4]),
@@ -35,17 +36,16 @@ def load_exons_for_species(species, exons_key='exons'):
             'cdsstart': int(ld[6]),
             'cdsend': int(ld[7]),
             'exons': exons
-        }))
-    ref2exons = list2dict(ref2exons, 0)
+        })
 
     gene2exons = {}
     for refseq in sorted(ref2exons.keys()):
         geneid = refseq2gene.get(refseq, None)
         if geneid and geneid != '0':
             if geneid not in gene2exons:
-                gene2exons[geneid] = {exons_key: {refseq: ref2exons[refseq]}}
+                gene2exons[geneid] = {exons_key: ref2exons[refseq]}
             else:
-                gene2exons[geneid][exons_key][refseq] = ref2exons[refseq]
+                gene2exons[geneid][exons_key] = ref2exons[refseq]
 
     load_done('[%d, %s]' % (len(gene2exons), timesofar(t0)))
 

@@ -165,7 +165,7 @@ def parse_gbff(path):
     from parse_refseq_gbff import main
     refseq_folder = os.path.join(path, 'refseq')
     gbff_files = glob.glob(os.path.join(refseq_folder, '*.rna.gbff.gz'))
-    assert len(gbff_files) >= 30, 'Missing "*.gbff.gz" files? Found %d:\n%s' % (len(gbff_files), '\n'.join(gbff_files))
+    assert len(gbff_files) >= 15, 'Missing "*.gbff.gz" files? Found %d:\n%s' % (len(gbff_files), '\n'.join(gbff_files))
     main(refseq_folder)
 
 
@@ -231,6 +231,9 @@ def main():
         parse_gbff(DATA_FOLDER)
         t_parsing = timesofar(t1)
         t_total = timesofar(t0)
+    except Exception as e:
+        print(e)
+        raise
     finally:
         sys.stdout.close()
 

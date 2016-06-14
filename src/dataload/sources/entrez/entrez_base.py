@@ -64,18 +64,20 @@ class GeneInfoParser(EntrezParserBase):
 
         '''
         load_start(self.datafile)
-        gene_d = tab2dict_iter(self.datafile, (0, 1, 2, 3, 4, 5, 7, 8, 9), key=1,
+        gene_d = tab2dict(self.datafile, (0, 1, 2, 3, 4, 5, 6, 7, 8, 9), key=1,
                           alwayslist=0, includefn=self.species_filter)
 
         def _ff(d):
             (
                 taxid, symbol, locus_tag, synonyms,
-                dbxrefs, map_location,
+                dbxrefs, chromosome, map_location,
                 description, type_of_gene
             ) = d
             out = dict(taxid=int(taxid),
                        symbol=symbol,
                        name=description)
+            if chromosome != '-':
+                out['chr'] = chromosome
             if map_location != '-':
                 out['map_location'] = map_location
             if type_of_gene != '-':
@@ -295,11 +297,11 @@ class Gene2AccessionParserBase(EntrezParserBase):
             }
             for x1, x2, x3 in d:
                 if x1 != '-':
-                    out['rna'].append(x1.split('.')[0])   # trim version number after dot
+                    out['rna'].append(x1)   # trim version number after dot
                 if x2 != '-':
-                    out['protein'].append(x2.split('.')[0])
+                    out['protein'].append(x2)
                 if x3 != '-':
-                    out['genomic'].append(x3.split('.')[0])
+                    out['genomic'].append(x3)
             # remove dup
             for k in out:
                 out[k] = normalized_value(out[k])

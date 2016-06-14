@@ -26,12 +26,12 @@ def get_mapping(self):
                 },
                 "rna": {
                     "type": "string",
-                    "analyzer": "string_lowercase",
+                    "analyzer": "refseq_analyzer",
                     "copy_to": "refseq",
                 },
                 'protein': {
                     "type": "string",
-                    "analyzer": "string_lowercase",
+                    "analyzer": "refseq_analyzer",
                     "copy_to": "refseq",
                 }
             }
