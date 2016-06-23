@@ -1,4 +1,4 @@
-from .uniprot_base import load_uniprot
+from .uniprot_base import load_all
 
 #UniProt id mapping source from UniProt directly
 #ftp://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/idmapping/idmapping_selected.tab
@@ -9,7 +9,7 @@ __metadata__ = {
 
 
 def load_genedoc(self=None):
-    genedoc_d = load_uniprot()
+    genedoc_d = load_all()
     return genedoc_d
 
 

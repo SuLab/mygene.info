@@ -1,15 +1,21 @@
 import os.path
+import pickle
+import copy
 import time
 from biothings.utils.common import timesofar
 from utils.dataload import (load_start, load_done,
                             listitems, dupline_seperator,
                             tabfile_feeder, list2dict, list_nondup,
-                            value_convert)
+                            value_convert, merge_struct)
+from utils.common import dump, loadobj
 #from config import DATA_ARCHIVE_ROOT
 from dataload import get_data_folder
 
 #DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/uniprot')
 DATA_FOLDER = get_data_folder('uniprot')
+UNIPROT_DATAFILE = os.path.join(DATA_FOLDER, 'idmapping_selected.tab.gz')  
+PDB_DUMPFILE = os.path.join(DATA_FOLDER, 'gene2pdb.pyobj')
+PIR_DUMPFILE = os.path.join(DATA_FOLDER, 'gene2pir.pyobj')
 
 #REF:
 #ftp://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/idmapping/README
@@ -47,13 +53,13 @@ def _dict_convert(uniprot_li):
     return {'uniprot': _dict}
 
 
-def load_uniprot():
-    print('DATA_FOLDER: ' + DATA_FOLDER)
-    DATAFILE = os.path.join(DATA_FOLDER, 'idmapping_selected.tab.gz')
-    load_start(DATAFILE)
-    t0 = time.time()
-    ensembl2geneid = {}
-    remains = []
+def load_all():
+    '''Load "uniprot" using yield, while building "PDB" and "PIR"
+    data dict while reading data file. These dict are then dumped
+    (pickled) and stored later'''
+
+    def cvt_fn(pdb_id):
+        return pdb_id.split(':')[0]
 
     def merge(xli,transcode=False):
         xli2 = []
@@ -83,16 +89,74 @@ def load_uniprot():
             docs.append(doc)
         return docs
 
-    for ld in tabfile_feeder(DATAFILE, header=1, assert_column_no=VALID_COLUMN_NO):
+    def merge_x(xli, gene2x, transcode=False, cvt_fn=None, k=None):
+        xli2 = []
+        entrez_id, ensembl_id, x_value = xli
+
+        if not x_value:
+            return
+
+        if cvt_fn:
+            x_value = cvt_fn(x_value)
+
+        if entrez_id:
+            xli2.append((entrez_id, x_value))
+        elif ensembl_id:
+            if not transcode:
+                raise KeyError(ensembl_id)
+            try:
+                entrez_id = x_ensembl2geneid[ensembl_id]
+                #if ensembl_id can be mapped to entrez_id
+                for _eid in entrez_id:
+                    xli2.append((_eid, x_value))
+            except KeyError:
+                xli2.append((ensembl_id, x_value))
+        for x in xli2:
+            gene2x.setdefault(x[0],[]).append(x[1])
+
+    print('DATA_FOLDER: ' + DATA_FOLDER)
+    load_start(UNIPROT_DATAFILE)
+    t0 = time.time()
+
+    # cache for uniprot
+    ensembl2geneid = {}
+    # cache for PDB and PIR
+    x_ensembl2geneid = {}
+
+    remains = []
+    pdb_remains = []
+    pir_remains = []
+
+    # once filled, will be dumped for later storage
+    gene2pdb = {}
+    gene2pir = {}
+
+    # store all PDB & PIR data while looping, the whole will be stored later
+    for ld in tabfile_feeder(UNIPROT_DATAFILE, header=1, assert_column_no=VALID_COLUMN_NO):
+        # Uniprot data will be stored as we read line by line
         xlis = []
-        ld = listitems(ld, *(0, 1, 2, 18))    # UniProtKB-AC UniProtKB-ID GeneID Ensembl(Gene)
-        for value in dupline_seperator(dupline=ld,
-                                       dup_idx=[2, 3],   # GeneID and EnsemblID columns may have duplicates
-                                       dup_sep='; '):
+        pdbxlis = []
+        pirxlis = []
+
+        # raw lines for each sources
+        uniprotld = [ld[0],ld[1],ld[2],ld[18]]
+        pdbld = [ld[2],ld[19],ld[5]]
+        pirld = [ld[2],ld[19],ld[11]]
+
+        # UniProt
+        # GeneID and EnsemblID columns may have duplicates
+        for value in dupline_seperator(dupline=uniprotld, dup_idx=[2, 3], dup_sep='; '):
             value = list(value)
             value[1] = get_uniprot_section(value[1])
             value = tuple(value)
             xlis.append(value)
+        # PDB
+        for value in dupline_seperator(dupline=pdbld,dup_sep='; '):
+            pdbxlis.append(value)
+
+        # PIR
+        for value in dupline_seperator(dupline=pirld, dup_sep='; '):
+            pirxlis.append(value)
 
         for xli in xlis:
             # feed mapping
@@ -117,6 +181,22 @@ def load_uniprot():
             except KeyError:
                 remains.append(xli)
 
+        for xli in pdbxlis:
+            if xli[0] != '' and xli[1] != '':
+                x_ensembl2geneid.setdefault(xli[1],[]).append(xli[0])
+            try:
+                merge_x(xli,gene2pdb,transcode=False,cvt_fn=cvt_fn,k="pdb")
+            except KeyError:
+                pdb_remains.append(xli)
+
+        for xli in pirxlis:
+            if xli[0] != '' and xli[1] != '':
+                x_ensembl2geneid.setdefault(xli[1],[]).append(xli[0])
+            try:
+                merge_x(xli,gene2pir,transcode=False)
+            except KeyError:
+                pir_remains.append(xli)
+
     # now transcode with what we have
     for remain in remains:
         try:
@@ -129,52 +209,50 @@ def load_uniprot():
         except KeyError:
             pass
 
-def load_x(idx, fieldname, cvt_fn=None):
-    '''idx is 0-based column number'''
-    print('DATA_FOLDER: ' + DATA_FOLDER)
-    DATAFILE = os.path.join(DATA_FOLDER, 'idmapping_selected.tab.gz')
-    load_start(DATAFILE)
-    t0 = time.time()
-    xli = []
-    for ld in tabfile_feeder(DATAFILE, header=1, assert_column_no=VALID_COLUMN_NO):
-        ld = listitems(ld, *(2, 19, idx))    # GeneID Ensembl(Gene) target_value
-        for value in dupline_seperator(dupline=ld,
-                                       dup_sep='; '):
-            xli.append(value)
+    load_done('Loaded Uniprot data [%s]' % (timesofar(t0)))
 
-    ensembl2geneid = list2dict(list_nondup([(x[1], x[0]) for x in xli if x[0] != '' and x[1] != '']), 0, alwayslist=True)
-    xli2 = []
-    for entrez_id, ensembl_id, x_value in xli:
-        if x_value:
-            if cvt_fn:
-                x_value = cvt_fn(x_value)
-            if entrez_id:
-                xli2.append((entrez_id, x_value))
-            elif ensembl_id:
-                entrez_id = ensembl2geneid.get(ensembl_id, None)
-                if entrez_id:
-                    for _eid in entrez_id:
-                        xli2.append((_eid, x_value))
-                else:
-                    xli2.append((ensembl_id, x_value))
-    gene2x = list2dict(list_nondup(xli2), 0)
-    fn = lambda value: {fieldname: sorted(value) if isinstance(value, list) else value}
-    gene2x = value_convert(gene2x, fn, traverse_list=False)
-    load_done('[%d, %s]' % (len(gene2x), timesofar(t0)))
+    for remain in pdb_remains:
+        try:
+            merge_x(remain,gene2pdb,transcode=True,cvt_fn=cvt_fn)
+        except KeyError:
+            pass
 
-    return gene2x
+    for remain in pir_remains:
+        try:
+            merge_x(remain,gene2pir,transcode=True)
+        except KeyError:
+            pass
 
+    # PDB
+    def normalize(value,keyname):
+        res = None
+        uniq = sorted(set(value))
+        if len(uniq) > 1:
+            res = {keyname : uniq}
+        else:
+            res = {keyname : uniq[0]}
+        return res
+
+    def normalize_pdb(value):
+        return normalize(value,"pdb")
+
+    def normalize_pir(value):
+        return normalize(value,"pir")
+
+    # PDB
+    gene2pdb = value_convert(gene2pdb, normalize_pdb, traverse_list=False)
+    dump(gene2pdb,PDB_DUMPFILE)
+    load_done('Dumped PDB data files [%s]' % (timesofar(t0)))
+
+    # PIR
+    gene2pir = value_convert(gene2pir, normalize_pir, traverse_list=False)
+    dump(gene2pir,PIR_DUMPFILE)
+    load_done('Dumped PIR data files [%s]' % (timesofar(t0)))
 
 def load_pdb():
-    fn = lambda pdb_id: pdb_id.split(':')[0]
-    return load_x(idx=5, fieldname='pdb', cvt_fn=fn)
-
-# def load_ipi():
-#     """IPI is now discontinued.
-#        Now removed from idmapping_selected.tab.gz file since 2014/06/11 release.
-#     """
-#     return load_x(idx=7, fieldname='ipi')
-
+    data = loadobj(PDB_DUMPFILE)
+    return data
 
 def load_pir():
-    return load_x(idx=11, fieldname='pir')
+    data = loadobj(PIR_DUMPFILE)
+    return data
