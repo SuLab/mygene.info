@@ -136,9 +136,11 @@ def merge_struct(v1, v2):
         if isinstance(v2, list):
             #print("v2 is list -> extend")
             v1.extend(v2)
+            v1 = list(set(v1))
         else:
             #print("v2 not list -> append")
-            v1.append(v2)
+            if v2 not in v1:
+                v1.append(v2)
 
     elif isinstance(v1, dict):
         assert isinstance(v2, dict),"v2 %s not a dict (v1: %s)" % (v2,v1)

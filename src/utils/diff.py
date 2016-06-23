@@ -46,16 +46,19 @@ def full_diff_doc(doc_1, doc_2, exclude_attrs=['_timestamp']):
                     difffound = True
             elif isinstance(_v1, list) and isinstance(_v2, list):
                 # there can be unhashable/unordered dict in these lists
-                for i in _v1:
-                    if i not in _v2:
-                        difffound = True
-                        break
-                # check the other way
-                if not difffound:
-                    for i in _v2:
-                        if i not in _v1:
+                if len(_v1) != len(_v2):
+                    difffound = True
+                else:
+                    for i in _v1:
+                        if i not in _v2:
                             difffound = True
                             break
+                    # check the other way
+                    if not difffound:
+                        for i in _v2:
+                            if i not in _v1:
+                                difffound = True
+                                break
             elif _v1 != _v2:
                 difffound = True
 
