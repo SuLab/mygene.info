@@ -134,6 +134,7 @@ class GeneDocSource(dict):
             print("Uploading to the DB...", end='')
             t0 = time.time()
             tinner = time.time()
+            aslistofdict = None
             for doc_li in self.doc_iterator(genedoc_d, batch=True, step=step):
                 if not test:
                     toinsert = len(doc_li)
@@ -141,7 +142,9 @@ class GeneDocSource(dict):
                     print("Inserting %s records ... " % toinsert,end="", flush=True)
                     try:
                         bob = self.temp_collection.initialize_unordered_bulk_op()
-                        [bob.insert(d) for d in doc_li]
+                        for d in doc_li:
+                            aslistofdict = d.pop("__aslistofdict__",None)
+                            bob.insert(d)
                         res = bob.execute()
                         nbinsert += res["nInserted"]
                         print("OK [%s]" % timesofar(tinner))
@@ -159,14 +162,16 @@ class GeneDocSource(dict):
                         for err in e.details["writeErrors"]:
                             errdoc = err["op"]
                             existing = hdocs[errdoc["_id"]]
-                            errdoc.pop("_id")
-                            merged = merge_struct(errdoc, existing)
-                            bob2.find({"_id" : errdoc["_id"]}).update_one({"$set" : merged})
+                            assert "_id" in existing
+                            _id = errdoc.pop("_id")
+                            merged = merge_struct(errdoc, existing,aslistofdict=aslistofdict)
+                            bob2.find({"_id" : _id}).update_one({"$set" : merged})
                             # update previously fetched doc. if several errors are about the same doc id,
                             # we would't merged things properly without an updated document
-                            hdocs[errdoc["_id"]] = merged
-                            #hdocs[errdoc["_id"]] = self.temp_collection.find_one({"_id" : errdoc["_id"]})
+                            assert "_id" in merged
+                            hdocs[_id] = merged
                             nbinsert += 1
+
                         res = bob2.execute()
                         print("OK [%s]" % timesofar(tinner))
                     assert nbinsert == toinsert, "nb %s to %s" % (nbinsert,toinsert)

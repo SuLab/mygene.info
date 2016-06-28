@@ -64,7 +64,7 @@ class GeneInfoParser(EntrezParserBase):
 
         '''
         load_start(self.datafile)
-        gene_d = tab2dict(self.datafile, (0, 1, 2, 3, 4, 5, 6, 7, 8, 9), key=1,
+        gene_d = tab2dict_iter(self.datafile, (0, 1, 2, 3, 4, 5, 6, 7, 8, 9), key=1,
                           alwayslist=0, includefn=self.species_filter)
 
         def _ff(d):

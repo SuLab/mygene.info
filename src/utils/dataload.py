@@ -129,18 +129,27 @@ def alwayslist(value):
         return [value]
 
 
-def merge_struct(v1, v2):
+def merge_struct(v1, v2,aslistofdict=None):
+
+    #print("v1 = %s" % repr(v1))
+    #print("v2 = %s" % repr(v2))
 
     if isinstance(v1, list):
         #print("v1 is list ", end="")
         if isinstance(v2, list):
             #print("v2 is list -> extend")
-            v1.extend(v2)
-            v1 = list(set(v1))
+            #v1.extend(v2)
+            #v1 = list(set(v1))
+            v1 = v1 + [x for x in v2 if x not in v1]
         else:
             #print("v2 not list -> append")
             if v2 not in v1:
                 v1.append(v2)
+
+    elif isinstance(v2, list) and isinstance(v1, dict):
+        #return merge_struct(v2,v1)
+        if v1 not in v2:
+            v2.append(v1)
 
     elif isinstance(v1, dict):
         assert isinstance(v2, dict),"v2 %s not a dict (v1: %s)" % (v2,v1)
@@ -150,10 +159,26 @@ def merge_struct(v1, v2):
             if k in v2:
                 #print("%s is both dict -> merge/update v1[%s],v2[%s]" % (k, k, k))
                 #v1.update(merge(v1[k], v2[k]))
-                v1[k] = merge_struct(v1[k], v2[k])
+                if aslistofdict == k:
+                    v1elem = v1[k]
+                    v2elem = v2[k]
+                    if not isinstance(v1elem, list):
+                        v1elem = [v1elem]
+                    if not isinstance(v2elem, list):
+                        v2elem = [v2elem]
+                    # v1elem and v2elem may be the same, in this case as a result
+                    # we may have transformed it in a list (no merge, but just type change).
+                    # if so, back to scalar
+                    if v1elem != v2elem:
+                        v1[k] = merge_struct(v1elem,v2elem)
+                else:
+                    v1[k] = merge_struct(v1[k], v2[k])
             else:
                 #print("%s not in v2 -> update v1 with v2" % k)
-                v1.update(v2)
+                #print("v2 before %s" % repr(v2))
+                #v1.update(v2)
+                v2[k] = v1[k]
+                #print("v2 after %s" % repr(v2))
         for k in v2:
             #print("v2[%s]" % k)
             if k in v1:

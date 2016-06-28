@@ -11,7 +11,7 @@ __metadata__ = {
 
 
 def load_genedoc(self=None):
-    ep = EnsemblParser()
+    ep = EnsemblParser(load_ensembl2entrez=False)
     ensembl_genes = ep.load_ensembl_main()
     return ensembl_genes
 
