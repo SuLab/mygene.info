@@ -123,7 +123,7 @@ class GeneInfoParser(EntrezParserBase):
         load_done('[%d]' % cnt)
 
 
-def get_geneid_d(species_li=None, load_cache=True, save_cache=True):
+def get_geneid_d(species_li=None, load_cache=True, save_cache=True,only_for={}):
     '''return a dictionary of current/retired geneid to current geneid mapping.
        This is useful, when other annotations were mapped to geneids may
        contain retired gene ids.
@@ -156,9 +156,9 @@ def get_geneid_d(species_li=None, load_cache=True, save_cache=True):
     DATAFILE = os.path.join(DATA_FOLDER, 'gene/gene_info.gz')
     load_start(DATAFILE)
     if species_li:
-        species_filter = lambda ld: int(ld[0]) in taxid_set
+        species_filter = lambda ld: int(ld[0]) in taxid_set and (only_for and ld[1] in only_for)
     else:
-        species_filter = None
+        species_filter = lambda ld: only_for and ld[1] in only_for
     geneid_li = set(tab2list(DATAFILE, 1, includefn=species_filter))
     load_done('[%d]' % len(geneid_li))
 
@@ -169,8 +169,7 @@ def get_geneid_d(species_li=None, load_cache=True, save_cache=True):
         _includefn = lambda ld: int(ld[0]) in taxid_set and ld[1] in geneid_li
     else:
         _includefn = lambda ld: ld[1] in geneid_li    # include all species
-    retired2gene = tab2dict(DATAFILE, (1, 2), 1, alwayslist=0,
-                            includefn=_includefn)
+    retired2gene = tab2dict(DATAFILE, (1, 2), 1, alwayslist=0, includefn=_includefn)
     # includefn above makes sure taxid is for species_li and filters out those
     # mapped_to geneid exists in gene_info list
 
@@ -213,17 +212,22 @@ class HomologeneParser(EntrezParserBase):
         '''
 
         load_start(self.datafile)
+        homo_d = tab2dict(self.datafile,(2,1),0,header=0)
+        DATAFILE = os.path.join(DATA_FOLDER, 'gene/gene_history.gz')
+        retired2gene = tab2dict(DATAFILE, (1, 2), 1, alwayslist=0,includefn=lambda ld: ld[1] != '-')
+        for id in list(homo_d.keys()):
+            homo_d[retired2gene.get(id,id)] = homo_d[id]
+
         with open(self.datafile) as df:
             homologene_d = {}
             doc_li = []
             print()
-            geneid_d = get_geneid_d(self.species_li)
+            geneid_d = get_geneid_d(self.species_li,load_cache=False,save_cache=False,only_for=homo_d)
 
             for line in df:
                 ld = line.strip().split('\t')
                 hm_id, tax_id, geneid = [int(x) for x in ld[:3]]
-                if (self.taxid_set is None or tax_id in self.taxid_set) and \
-                        geneid in geneid_d:
+                if (self.taxid_set is None or tax_id in self.taxid_set) and geneid in geneid_d:
                     # for selected species only
                     # and also ignore those geneid does not match any
                     # existing gene doc
@@ -348,7 +352,13 @@ class Gene2UnigeneParser(EntrezParserBase):
     def load(self, aslist=False):
         load_start(self.datafile)
         print()
-        geneid_d = get_geneid_d(self.species_li)
+        uni_d = tab2dict(self.datafile, (0, 1), 0, alwayslist=0)
+        DATAFILE = os.path.join(DATA_FOLDER, 'gene/gene_history.gz')
+        retired2gene = tab2dict(DATAFILE, (1, 2), 1, alwayslist=0,includefn=lambda ld: ld[1] != '-')
+        for id in list(uni_d.keys()):
+            uni_d[retired2gene.get(id,id)] = uni_d[id]
+        geneid_d = get_geneid_d(self.species_li,load_cache=False,save_cache=False,only_for=uni_d)
+        #geneid_d = get_geneid_d(self.species_li)
         gene2unigene = tab2dict_iter(self.datafile, (0, 1), 0, alwayslist=0,
                                  includefn=lambda ld: int(ld[0]) in geneid_d)
         cnt = 0
@@ -483,8 +493,16 @@ class Gene2GeneRifParser(EntrezParserBase):
 
     def load(self):
         load_start(self.datafile)
-        gene2generif = tab2dict(self.datafile, (1, 2, 4), 0, alwayslist=1)
-        gene2generif = dict_convert(gene2generif, valuefn=lambda v: {
-            'generif': [dict(pubmed=self._cvt_pubmed(x[0]), text=x[1]) for x in v]})
-        load_done('[%d]' % len(gene2generif))
-        return gene2generif
+        cnt = 0
+        for datadict in tab2dict_iter(self.datafile, (1, 2, 4), 0, alwayslist=1):
+            datadict = dict_convert(datadict, valuefn=lambda v: {
+                            'generif': [dict(pubmed=self._cvt_pubmed(x[0]), text=x[1]) for x in v]})
+
+            for id,doc in datadict.items():
+                cnt += 1
+                doc['_id'] = id
+                yield doc
+        #gene2generif = tab2dict(self.datafile, (1, 2, 4), 0, alwayslist=1)
+        #gene2generif = dict_convert(gene2generif, valuefn=lambda v: {
+        #    'generif': [dict(pubmed=self._cvt_pubmed(x[0]), text=x[1]) for x in v]})
+        load_done('[%d]' % cnt)

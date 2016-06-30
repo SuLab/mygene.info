@@ -166,7 +166,7 @@ class EnsemblParser:
         for datadict in tab2dict_iter(DATAFILE, (1, 3, 4, 5, 6), 0, includefn=_not_LRG):
             datadict = dict_nodup(datadict)
             datadict = value_convert(datadict, lambda x: {'chr': x[2], 'start': int(x[0]), 'end': int(x[1]), 'strand': int(x[3])})
-            datadict = value_convert(datadict, lambda x: {'genomic_pos': x, '__aslistofdict__' : 'genomic_pos'}, traverse_list=false) 
+            datadict = value_convert(datadict, lambda x: {'genomic_pos': x, '__aslistofdict__' : 'genomic_pos'}, traverse_list=False) 
             for doc in map_id(datadict,self.ensembl2entrez):
                 yield doc
 
