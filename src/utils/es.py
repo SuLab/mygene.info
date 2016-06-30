@@ -948,7 +948,17 @@ class ESIndexer(object):
             })
             return doc
         actions = (_get_bulk(doc) for doc in docs)
-        return helpers.bulk(self.conn, actions, chunk_size=step)
+        try:
+            return helpers.bulk(self.conn, actions, chunk_size=step)
+        except helpers.BulkIndexError as e:
+            # try again...
+            print("Bulk error, try again...")
+            return self.index_bulk(docs,step)
+            ##return helpers.bulk(self.conn, actions, chunk_size=step)
+        except Exception as e:
+            print("Err...")
+            import pickle
+            pickle.dump(e,open("err","wb"))
 
     def add_docs(self, docs, step=None):
         self.index_bulk(docs, step=step)
@@ -1049,10 +1059,10 @@ class ESIndexer(object):
         body = {
             "index": {
                 # disable refresh temporarily
-                # "refresh_interval": "-1",
+                "refresh_interval": "-1",
                 "auto_expand_replicas": "0-all",
                 # "number_of_replicas": 0,
-                "refresh_interval": "30s",
+                #"refresh_interval": "30s",
             }
         }
         conn.indices.put_settings(body, index_name)

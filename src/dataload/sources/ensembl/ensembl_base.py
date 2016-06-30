@@ -127,15 +127,21 @@ class EnsemblParser:
         load_start(DATAFILE)
 
         def _fn(x, eid):
-            out = {'gene': eid}
+            out = {'gene': eid, 'mapping' : []}
+            def mapping(transcript_id, protein_id):
+                trid = transcript_id and transcript_id != '\\N' and transcript_id or None
+                pid = protein_id and protein_id != '\\N' and protein_id or None
+                out['mapping'].append((trid,pid))
+
             if isinstance(x, list):
                 transcript_li = []
                 protein_li = []
                 for _x in x:
                     if _x[0] and _x[0] != '\\N':
                         transcript_li.append(_x[0])
-                    if _x[0] and _x[1] != '\\N':
+                    if _x[1] and _x[1] != '\\N':
                         protein_li.append(_x[1])
+                    mapping(_x[0],_x[1])
 
                 if transcript_li:
                     out['transcript'] = normalized_value(transcript_li)
@@ -146,6 +152,8 @@ class EnsemblParser:
                     out['transcript'] = x[0]
                 if x[1] and x[1] != '\\N':
                     out['protein'] = x[1]
+                mapping(x[0],x[1])
+
             return out
 
         #ensembl2acc = tab2dict(DATAFILE, (1, 2, 3), 0, includefn=_not_LRG)

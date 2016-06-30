@@ -45,7 +45,7 @@ def load_exons_for_species(species, exons_key='exons'):
             if geneid not in gene2exons:
                 gene2exons[geneid] = {exons_key: ref2exons[refseq]}
             else:
-                gene2exons[geneid][exons_key] = ref2exons[refseq]
+                gene2exons[geneid][exons_key].extend(ref2exons[refseq])
 
     load_done('[%d, %s]' % (len(gene2exons), timesofar(t0)))
 

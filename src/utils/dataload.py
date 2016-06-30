@@ -23,6 +23,19 @@ from biothings.utils.common import ask
 
 csv.field_size_limit(10000000)   # default is 131072, too small for some big files
 
+# http://stackoverflow.com/questions/12971631/sorting-list-by-an-attribute-that-can-be-none
+# used to sort list with None element (because python3 suddenly decided it wwasn't possible
+# anymore. because...)
+from functools import total_ordering
+@total_ordering
+class MinType(object):
+    def __le__(self, other):
+        return True
+
+    def __eq__(self, other):
+        return (self is other)
+Min = MinType()
+
 
 #===============================================================================
 # Misc. Utility functions
@@ -489,7 +502,7 @@ def normalized_value(value, sort=True):
             if isinstance(_v[0],dict):
                 _v = sorted(_v,key=lambda x: sorted(x.keys()))
             else:
-                _v = sorted(_v)
+                _v = sorted(_v,key=lambda x: Min if x is None or (type(x) != str and None in x) else x)
         if len(_v) == 1:
             _v = _v[0]
     else:

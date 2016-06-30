@@ -297,15 +297,21 @@ class Gene2AccessionParserBase(EntrezParserBase):
             out = {
                 'rna': [],
                 'protein': [],
-                'genomic': []
+                'genomic': [],
+                'mapping': []
             }
-            for x1, x2, x3 in d:
-                if x1 != '-':
-                    out['rna'].append(x1)   # trim version number after dot
-                if x2 != '-':
-                    out['protein'].append(x2)
-                if x3 != '-':
-                    out['genomic'].append(x3)
+            for rna, prot, dna in d:
+                if rna == '-': rna = None
+                if prot == '-': prot = None
+                if dna == '-': dna = None
+                if rna is not None:
+                    out['rna'].append(rna)
+                if prot is not None:
+                    out['protein'].append(prot)
+                if dna is not None:
+                    out['genomic'].append(dna)
+                if rna is not None or prot is not None:
+                    out['mapping'].append((rna,prot))
             # remove dup
             for k in out:
                 out[k] = normalized_value(out[k])
