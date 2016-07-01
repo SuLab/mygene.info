@@ -46,10 +46,6 @@ def get_mapping(self):
             "analyzer": "string_lowercase",
             "boost": 5.0
         },
-        "chr": {
-            "type": "string",
-            "analyzer": "string_lowercase"
-        },
         "locus_tag": {
             "type": "string",
             "analyzer": "string_lowercase"

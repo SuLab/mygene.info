@@ -76,9 +76,21 @@ class EnsemblParser:
 
     def _load_ensembl2entrez_li(self):
         """gene_ensembl__xref_entrezgene__dm"""
+        CUSTOM_MAPPING_FILE = os.path.join(DATA_FOLDER, 'gene_ensembl__gene__extra.txt')
+        assert os.path.exists(CUSTOM_MAPPING_FILE), "Missing extra mapping file"
+        load_start(CUSTOM_MAPPING_FILE)
+        extra = tab2dict(CUSTOM_MAPPING_FILE,(0, 1), 0, alwayslist=True)
         DATAFILE = os.path.join(DATA_FOLDER, 'gene_ensembl__xref_entrezgene__dm.txt')
         load_start(DATAFILE)
-        ensembl2entrez_li = tab2list(DATAFILE, (1, 2), includefn=_not_LRG)   # [(ensembl_gid, entrez_gid),...]
+        ensembl2entrez = tab2dict(DATAFILE, (1, 2), 0, includefn=_not_LRG, alwayslist=True)   # [(ensembl_gid, entrez_gid),...]
+        # replace with our custom mapping
+        for k in extra:
+            ensembl2entrez[k] = extra[k]
+        # back to list of tuples
+        ensembl2entrez_li = []
+        for ensembl_id, entrez_ids in ensembl2entrez.items():
+            for entrez_id in entrez_ids:
+                ensembl2entrez_li.append((ensembl_id, entrez_id))
         load_done('[%d]' % len(ensembl2entrez_li))
         self.ensembl2entrez_li = ensembl2entrez_li
 

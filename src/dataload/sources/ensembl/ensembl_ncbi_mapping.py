@@ -5,7 +5,7 @@ from collections import defaultdict
 import mygene
 
 from dataload import get_data_folder
-from utils.dataload import anyfile
+from utils.dataload import anyfile, tabfile_feeder
 from utils.common import safewfile
 
 
@@ -18,6 +18,7 @@ print('Ensembl DATA_FOLDER: ' + Entrez_DATA_FOLDER)
 gene_ensembl_1_xref_dm_file = os.path.join(ENSEMBL_DATA_FOLDER, "gene_ensembl__xref_entrezgene__dm.txt")
 gene_ensembl_2_main_file = os.path.join(ENSEMBL_DATA_FOLDER, "gene_ensembl__gene__main.txt")
 gene2ensembl_file = os.path.join(Entrez_DATA_FOLDER, "gene/gene2ensembl.gz")
+gene_main_file = os.path.join(Entrez_DATA_FOLDER, "gene/gene_info.gz")
 
 outfile = os.path.join(ENSEMBL_DATA_FOLDER, "gene_ensembl__gene__extra.txt")
 
@@ -116,36 +117,30 @@ def find_ncbi_ids_from_gene2ensembl(ensembl_dict, gene2ensembl_file):
     return ensembl_dict, count
 
 
-def query_mygene_website(ensembl_dict):
-    """If the length of the ncbi match list from gene2ensembl is not one, then
-    query mygene.info website.
-    """
-    print("step 4 start: use querymany to access mygene.info for NCBI gene symbol")
-    ncbi_list_for_mygene_querymany = []
+def find_ncbi_symbols(gene_info_file,ensembl_dict):
+    print("step 4 start: read NCBI gene symbol")
+    ncbi_list_to_find = {}
     for key in ensembl_dict:
         ncbi_list = ensembl_dict[key]['data']['ncbi_list']
-        gene2ensembl_ncbi_gene_id_match_list = ensembl_dict[key]['data']['gene2ensembl']
-        ncbi_list_for_mygene_querymany.append(ncbi_list)
-        if len(gene2ensembl_ncbi_gene_id_match_list) != 1:
-            ncbi_list_for_mygene_querymany.append(ncbi_list)
+        for e in ncbi_list:
+            ncbi_list_to_find[e] = True
+        #gene2ensembl_ncbi_gene_id_match_list = ensembl_dict[key]['data']['gene2ensembl']
+        #if len(gene2ensembl_ncbi_gene_id_match_list) != 1:
+        #    ncbi_list_to_find.append(ncbi_list)
 
-    ncbi_list_for_mygene_querymany = list(set([item for sublist in ncbi_list_for_mygene_querymany for item in sublist]))
+    for e in list(set([item for sublist in ncbi_list_to_find for item in sublist])):
+        ncbi_list_to_find[e] = True
 
-    # This returns a list of dictionaries from mygene.info.
-    ensembl_symbol_list_from_mygene = mygene.MyGeneInfo().querymany(ncbi_list_for_mygene_querymany,
-                                                                    scopes='entrezgene', species="all",
-                                                                    fields="symbol", verbose=False)
-    mygene_website_dict = {}
-    for dic in ensembl_symbol_list_from_mygene:
-        try:
-            mygene_website_dict[dic['query']] = dic['symbol']
-        except KeyError:
-            pass
+    ncbi_id_symbols = {}
+    print("todiufd %s" % repr(ncbi_list_to_find))
+    for ld in tabfile_feeder(gene_info_file):
+        if ld[1] in ncbi_list_to_find:
+            ncbi_id_symbols[ld[1]] = ld[2]
 
-    print("number of unique NCBI gene IDs to be queried using mygene.info: ", len(ncbi_list_for_mygene_querymany))
-    print("number symbols found from querying mygene.info: ", len(mygene_website_dict))
+    print("number of unique NCBI gene IDs to be queried using mygene.info: ", len(ncbi_list_to_find))
+    print("number symbols found from querying mygene.info: ", len(ncbi_id_symbols))
     print("step 4 end")
-    return mygene_website_dict
+    return ncbi_id_symbols
 
 
 def merge_mapping(ensembl_dict, mygene_website_dict, add_source=False):
@@ -204,7 +199,7 @@ def write_mapping_file(mapping_generator, confirm=True):
         NCBI ID if symbols match only once)
     """
     print("step 6 start: write file from mapping generator of tuples")
-    mapping_file, mapping_filename = safewfile(outfile, prompt=confirm)
+    mapping_file, mapping_filename = safewfile(outfile, prompt=confirm,default='O')
 
     count = 0
     for item in mapping_generator:
@@ -237,10 +232,10 @@ def main(confirm=True):
     multi_mapping_dict, total_ensembl_IDs = find_multiple_mappings_from_entrezgene_file(gene_ensembl_1_xref_dm_file)
     ensembl_dict = create_ensembl_gene_id_dict(gene_ensembl_2_main_file, multi_mapping_dict)
     ensembl_dict, ensembl_match_count = find_ncbi_ids_from_gene2ensembl(ensembl_dict, gene2ensembl_file)
-    mygene_website_dict = query_mygene_website(ensembl_dict)
-    mapping_generator = merge_mapping(ensembl_dict, mygene_website_dict, add_source=False)
+    ncbi_id_symbols = find_ncbi_symbols(gene_main_file, ensembl_dict)
+    mapping_generator = merge_mapping(ensembl_dict, ncbi_id_symbols, add_source=False)
     total_mapped = write_mapping_file(mapping_generator, confirm=confirm)
     run_stats(total_ensembl_IDs, ensembl_dict, ensembl_match_count, total_mapped)
 
 # use this for testing purposes:
-# main(gene_ensembl_1_xref_dm_file, gene_ensembl_2_main_file, gene2ensembl_file)
+main(False)#gene_ensembl_1_xref_dm_file, gene_ensembl_2_main_file, gene2ensembl_file)
