@@ -77,7 +77,10 @@ class EnsemblParser:
     def _load_ensembl2entrez_li(self):
         """gene_ensembl__xref_entrezgene__dm"""
         CUSTOM_MAPPING_FILE = os.path.join(DATA_FOLDER, 'gene_ensembl__gene__extra.txt')
-        assert os.path.exists(CUSTOM_MAPPING_FILE), "Missing extra mapping file"
+        if not os.path.exists(CUSTOM_MAPPING_FILE):
+            print("Missing extra mapping file, now generating")
+            from . import ensembl_ncbi_mapping
+            ensembl_ncbi_mapping.main(confirm=False)
         load_start(CUSTOM_MAPPING_FILE)
         extra = tab2dict(CUSTOM_MAPPING_FILE,(0, 1), 0, alwayslist=True)
         DATAFILE = os.path.join(DATA_FOLDER, 'gene_ensembl__xref_entrezgene__dm.txt')

@@ -2,8 +2,6 @@ from __future__ import print_function
 import os.path
 from collections import defaultdict
 
-import mygene
-
 from dataload import get_data_folder
 from utils.dataload import anyfile, tabfile_feeder
 from utils.common import safewfile
@@ -132,13 +130,12 @@ def find_ncbi_symbols(gene_info_file,ensembl_dict):
         ncbi_list_to_find[e] = True
 
     ncbi_id_symbols = {}
-    print("todiufd %s" % repr(ncbi_list_to_find))
     for ld in tabfile_feeder(gene_info_file):
         if ld[1] in ncbi_list_to_find:
             ncbi_id_symbols[ld[1]] = ld[2]
 
     print("number of unique NCBI gene IDs to be queried using mygene.info: ", len(ncbi_list_to_find))
-    print("number symbols found from querying mygene.info: ", len(ncbi_id_symbols))
+    print("number symbols found in NCBI file: ", len(ncbi_id_symbols))
     print("step 4 end")
     return ncbi_id_symbols
 
@@ -237,5 +234,3 @@ def main(confirm=True):
     total_mapped = write_mapping_file(mapping_generator, confirm=confirm)
     run_stats(total_ensembl_IDs, ensembl_dict, ensembl_match_count, total_mapped)
 
-# use this for testing purposes:
-main(False)#gene_ensembl_1_xref_dm_file, gene_ensembl_2_main_file, gene2ensembl_file)
