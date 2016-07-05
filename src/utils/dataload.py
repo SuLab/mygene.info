@@ -502,7 +502,12 @@ def normalized_value(value, sort=True):
             if isinstance(_v[0],dict):
                 _v = sorted(_v,key=lambda x: sorted(x.keys()))
             else:
-                _v = sorted(_v,key=lambda x: Min if x is None or (type(x) != str and None in x) else x)
+                try:
+                    _v = sorted(_v)
+                except TypeError:
+                    # probably some None values to sort, not handle anymore in py3
+                    # let's use a trick...
+                    _v = sorted(_v,key=lambda x: Min if x is None or (type(x) != str and None in x) else x) 
         if len(_v) == 1:
             _v = _v[0]
     else:
