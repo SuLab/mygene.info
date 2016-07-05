@@ -24,13 +24,16 @@ from biothings.utils.common import ask, timesofar, safewfile
 
 src_path = os.path.split(os.path.split(os.path.split(os.path.abspath(__file__))[0])[0])[0]
 sys.path.append(src_path)
-from utils.common import LogPrint
+from utils.common import LogPrint, rmdashfr
 from utils.mongo import get_src_dump
-from config import DATA_ARCHIVE_ROOT
+from config import DATA_ARCHIVE_ROOT, ARCHIVE_DATA
 
 
-timestamp = time.strftime('%Y%m%d')
-DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/pharmgkb', timestamp)
+TIMESTAMP = time.strftime('%Y%m%d')
+if ARCHIVE_DATA:
+    DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/pharmgkb', TIMESTAMP)
+else:
+    DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/pharmgkb/latest')
 
 #GENES_URL = 'http://www.pharmgkb.org/commonFileDownload.action?filename=genes.zip'
 GENES_URL = 'http://www.pharmgkb.org/download.do?objId=genes.zip&dlCls=common'
@@ -85,6 +88,9 @@ if __name__ == '__main__':
             print("No newer file found. Abort now.")
             sys.exit(0)
 
+    if not ARCHIVE_DATA:
+        rmdashfr(DATA_FOLDER)
+
     if not os.path.exists(DATA_FOLDER):
         os.makedirs(DATA_FOLDER)
     else:
@@ -96,7 +102,7 @@ if __name__ == '__main__':
 
     #mark the download starts
     doc = {'_id': 'pharmgkb',
-           'timestamp': timestamp,
+           'timestamp': TIMESTAMP,
            'data_folder': DATA_FOLDER,
            'lastmodified': lastmodified,
            'logfile': logfile,

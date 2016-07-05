@@ -43,6 +43,10 @@ LOG_FOLDER = 'logs'
 
 # Absolute path !
 DATA_ARCHIVE_ROOT = '/path/to/data'
+# if True then all data directory will be kept
+# otherwise only latest will be kept (while downloading, previous
+# version will be removed)
+ARCHIVE_DATA = True
 
 # Path to ASCP install directory
 # (see "bin" and "etc" are). See http://asperasoft.com

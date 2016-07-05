@@ -24,13 +24,15 @@ from biothings.utils.common import ask, timesofar, safewfile
 
 src_path = os.path.split(os.path.split(os.path.split(os.path.abspath(__file__))[0])[0])[0]
 sys.path.append(src_path)
-from utils.common import LogPrint
+from utils.common import LogPrint, rmdashfr
 from utils.mongo import get_src_dump
-from config import DATA_ARCHIVE_ROOT
+from config import DATA_ARCHIVE_ROOT, ARCHIVE_DATA
 
-
-timestamp = time.strftime('%Y%m%d')
-DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/uniprot', timestamp)
+TIMESTAMP = time.strftime('%Y%m%d')
+if ARCHIVE_DATA:
+    DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/uniprot', TIMESTAMP)
+else:
+    DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/uniprot/latest')
 
 FTP_SERVER = 'ftp.uniprot.org'
 DATAFILE_PATH = 'pub/databases/uniprot/current_release/knowledgebase/idmapping/idmapping_selected.tab.gz'
@@ -77,13 +79,19 @@ if __name__ == '__main__':
 
     src_dump = get_src_dump()
     lastmodified = check_lastmodified()
+    print(lastmodified)
     doc = src_dump.find_one({'_id': 'uniprot'})
+    print(doc)
     if doc and 'lastmodified' in doc and lastmodified <= doc['lastmodified']:
         path, filename = os.path.split(DATAFILE_PATH)
         data_file = os.path.join(doc['data_folder'], filename)
+        print(data_file)
         if os.path.exists(data_file):
             print("No newer file found. Abort now.")
             sys.exit(0)
+
+    if not ARCHIVE_DATA:
+        rmdashfr(DATA_FOLDER)
 
     if not os.path.exists(DATA_FOLDER):
         os.makedirs(DATA_FOLDER)
@@ -96,7 +104,7 @@ if __name__ == '__main__':
 
     #mark the download starts
     doc = {'_id': 'uniprot',
-           'timestamp': timestamp,
+           'timestamp': TIMESTAMP,
            'data_folder': DATA_FOLDER,
            'lastmodified': lastmodified,
            'logfile': logfile,

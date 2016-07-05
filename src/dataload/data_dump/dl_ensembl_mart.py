@@ -29,10 +29,10 @@ from biothings.utils.common import ask, timesofar, safewfile
 
 src_path = os.path.split(os.path.split(os.path.split(os.path.abspath(__file__))[0])[0])[0]
 sys.path.append(src_path)
-from utils.common import LogPrint
+from utils.common import LogPrint, rmdashfr
 from utils.mongo import get_src_dump
 from utils.dataload import tab2list
-from config import DATA_ARCHIVE_ROOT
+from config import DATA_ARCHIVE_ROOT, ARCHIVE_DATA
 
 
 
@@ -302,7 +302,12 @@ def main():
 
     BM = BioMart()
     BM.species_li = get_all_species(mart_version)
-    DATA_FOLDER = os.path.join(ENSEMBL_FOLDER, mart_version)
+    if ARCHIVE_DATA:
+        DATA_FOLDER = os.path.join(ENSEMBL_FOLDER, mart_version)
+    else:
+        DATA_FOLDER = os.path.join(ENSEMBL_FOLDER,"latest")
+        rmdashfr(DATA_FOLDER)
+
     if not os.path.exists(DATA_FOLDER):
         os.makedirs(DATA_FOLDER)
     else:

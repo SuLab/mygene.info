@@ -24,13 +24,17 @@ from biothings.utils.common import ask, timesofar, safewfile
 
 src_path = os.path.split(os.path.split(os.path.split(os.path.abspath(__file__))[0])[0])[0]
 sys.path.append(src_path)
-from utils.common import LogPrint
+from utils.common import LogPrint, rmdashfr
 from utils.mongo import get_src_dump
-from config import DATA_ARCHIVE_ROOT, ASCP_ROOT
+from config import DATA_ARCHIVE_ROOT, ASCP_ROOT, ARCHIVE_DATA
 
 
-timestamp = time.strftime('%Y%m%d')
-DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/entrez', timestamp)
+TIMESTAMP = time.strftime('%Y%m%d')
+if ARCHIVE_DATA:
+    DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/entrez', TIMESTAMP)
+else:
+    DATA_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/entrez/latest')
+
 
 FILE_LIST = {
     'gene': {
@@ -203,6 +207,9 @@ def redo_parse_gbff(path):
 def main():
     no_confirm = True   # set it to True for running this script automatically without intervention.
 
+    if not ARCHIVE_DATA:
+        rmdashfr(DATA_FOLDER)
+
     if not os.path.exists(DATA_FOLDER):
         os.makedirs(DATA_FOLDER)
     else:
@@ -216,7 +223,7 @@ def main():
     #mark the download starts
     src_dump = get_src_dump()
     doc = {'_id': 'entrez',
-           'timestamp': timestamp,
+           'timestamp': TIMESTAMP,
            'data_folder': DATA_FOLDER,
            'logfile': logfile,
            'status': 'downloading'}
