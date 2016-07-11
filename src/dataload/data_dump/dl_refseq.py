@@ -22,10 +22,11 @@ import time
 from ftplib import FTP
 from io import StringIO
 from dataload.data_dump.dl_entrez import _get_ascp_cmdline, _expand_wildchar_urls
-from utils.common import safewfile, LogPrint
+from utils.common import safewfile, setup_logfile
 from biothings.utils.common import timesofar, ask
 from utils.mongo import get_src_dump
-from config import DATA_ARCHIVE_ROOT
+from config import DATA_ARCHIVE_ROOT, logger as logging
+
 
 src_path = os.path.split(os.path.split(os.path.split(os.path.abspath(__file__))[0])[0])[0]
 sys.path.append(src_path)
@@ -56,7 +57,7 @@ def check_refseq_release():
     if doc and 'release' in doc and refseq_release <= doc['release']:
         data_file = os.path.join(doc['data_folder'], 'complete.109.rna.gbff.gz')
         if os.path.exists(data_file):
-            print("No newer release found. Abort now.")
+            logging.info("No newer release found. Abort now.")
             sys.exit(0)
 
 
@@ -70,7 +71,7 @@ def download(path, release, no_confirm=False):
 
         _url = 'ftp://' + FTP_SERVER + BASE_PATH + DATA_FILE
         url_li = _expand_wildchar_urls(_url)
-        print('Found {} "{}" files to download.'.format(len(url_li), DATA_FILE))
+        logging.info('Found {} "{}" files to download.'.format(len(url_li), DATA_FILE))
 
         for url in url_li:
             os.chdir(data_folder)
@@ -79,20 +80,20 @@ def download(path, release, no_confirm=False):
                 if no_confirm or ask('Remove existing file "%s"?' % filename) == 'Y':
                     os.remove(filename)
                 else:
-                    print("Skipped!")
+                    logging.info("Skipped!")
                     continue
-            print('Downloading "%s"...' % filename)
+            logging.info('Downloading "%s"...' % filename)
             #cmdline = 'wget %s' % url
             #cmdline = 'axel -a -n 5 %s' % url   #faster than wget using 5 connections
             cmdline = _get_ascp_cmdline(url)
             return_code = os.system(cmdline)
             #return_code = 0;print cmdline    #for testing
             if return_code == 0:
-                print("Success.")
+                logging.info("Success.")
             else:
-                print("Failed with return code (%s)." % return_code)
+                logging.info("Failed with return code (%s)." % return_code)
                 out.append((url, return_code))
-            print("=" * 50)
+            logging.info("=" * 50)
     finally:
         os.chdir(orig_path)
 
@@ -102,16 +103,16 @@ def download(path, release, no_confirm=False):
 def main_cron():
     no_confirm = True   # set it to True for running this script automatically without intervention.
 
-    print("Checking latest refseq release:\t", end='')
+    logging.info("Checking latest refseq release:\t", end='')
     refseq_release = get_refseq_release()
-    print(refseq_release)
+    logging.info(refseq_release)
 
     src_dump = get_src_dump()
     doc = src_dump.find_one({'_id': 'refseq'})
     if doc and 'release' in doc and refseq_release <= doc['release']:
         data_file = os.path.join(doc['data_folder'], 'complete.109.rna.gbff.gz')
         if os.path.exists(data_file):
-            print("No newer release found. Abort now.")
+            logging.info("No newer release found. Abort now.")
             sys.exit(0)
 
     DATA_FOLDER = os.path.join(REFSEQ_FOLDER, str(refseq_release))
@@ -121,8 +122,8 @@ def main_cron():
         if not (no_confirm or len(os.listdir(DATA_FOLDER)) == 0 or ask('DATA_FOLDER (%s) is not empty. Continue?' % DATA_FOLDER) == 'Y'):
             sys.exit(0)
 
-    log_f, logfile = safewfile(os.path.join(DATA_FOLDER, 'refseq_dump.log'), prompt=(not no_confirm), default='O')
-    sys.stdout = LogPrint(log_f, timestamp=True)
+    logfile = os.path.join(DATA_FOLDER, 'refseq_dump.log')
+    setup_logfile(logfile)
 
     #mark the download starts
     doc = {'_id': 'refseq',

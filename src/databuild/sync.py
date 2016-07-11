@@ -9,10 +9,10 @@ import time
 from utils.mongo import get_target_db, doc_feeder
 from .backend import GeneDocMongoDBBackend
 from utils.diff import diff_collections
-from utils.common import (iter_n, LogPrint,
+from utils.common import (iter_n, setup_logfile,
                           dump, send_s3_file, safewfile)
 from biothings.utils.common import timesofar, ask, is_str
-from config import LOG_FOLDER
+from config import LOG_FOLDER, logger as logging
 
 
 class GeneDocSyncer:
@@ -67,22 +67,22 @@ class GeneDocSyncer:
 
         t0 = time.time()
         if changes['add']:
-            print("Adding {} new docs...".format(len(changes['add'])), end='')
+            logging.info("Adding {} new docs...".format(len(changes['add'])))
             t00 = time.time()
             for _ids in iter_n(changes['add'], step):
                 _doc_li = src.mget_from_ids(_ids)
                 for _doc in _doc_li:
                     _doc['_timestamp'] = _timestamp
                 target.insert(_doc_li)
-            print("done. [{}]".format(timesofar(t00)))
+            logging.info("done. [{}]".format(timesofar(t00)))
         if changes['delete']:
-            print("Deleting {} discontinued docs...".format(len(changes['delete'])), end='')
+            logging.info("Deleting {} discontinued docs...".format(len(changes['delete'])))
             t00 = time.time()
             target.remove_from_ids(changes['delete'], step=step)
-            print("done. [{}]".format(timesofar(t00)))
+            logging.info("done. [{}]".format(timesofar(t00)))
 
         if changes['update']:
-            print("Updating {} existing docs...".format(len(changes['update'])))
+            logging.info("Updating {} existing docs...".format(len(changes['update'])))
             t00 = time.time()
             i = 0
             t1 = time.time()
@@ -90,48 +90,48 @@ class GeneDocSyncer:
                 target.update_diff(_diff, extra={'_timestamp': _timestamp})
                 i += 1
                 if i > 1 and i % step == 0:
-                    print('\t{}\t{}'.format(i, timesofar(t1)))
+                    logging.info('\t{}\t{}'.format(i, timesofar(t1)))
                     t1 = time.time()
-            print("done. [{}]".format(timesofar(t00)))
-        print("\n")
-        print("Finished.", timesofar(t0))
+            logging.info("done. [{}]".format(timesofar(t00)))
+        logging.info("\n")
+        logging.info("Finished.", timesofar(t0))
 
     def verify_changes(self, changes):
         _timestamp = changes['timestamp']
         target = GeneDocMongoDBBackend(self._target_col)
         if changes['add']:
-            print('Verifying "add"...', end='')
+            logging.info('Verifying "add"...')
             # _cnt = self._target_col.find({'_id': {'$in': changes['add']}}).count()
             _cnt = target.count_from_ids(changes['add'])
             if _cnt == len(changes['add']):
-                print('...{}=={}...OK'.format(_cnt, len(changes['add'])))
+                logging.info('...{}=={}...OK'.format(_cnt, len(changes['add'])))
             else:
-                print('...{}!={}...ERROR!!!'.format(_cnt, len(changes['add'])))
+                logging.info('...{}!={}...ERROR!!!'.format(_cnt, len(changes['add'])))
         if changes['delete']:
-            print('Verifying "delete"...', end='')
+            logging.info('Verifying "delete"...')
             # _cnt = self._target_col.find({'_id': {'$in': changes['delete']}}).count()
             _cnt = target.count_from_ids(changes['delete'])
             if _cnt == 0:
-                print('...{}==0...OK'.format(_cnt))
+                logging.info('...{}==0...OK'.format(_cnt))
             else:
-                print('...{}!=0...ERROR!!!'.format(_cnt))
+                logging.info('...{}!=0...ERROR!!!'.format(_cnt))
 
-        print("Verifying all docs have timestamp...", end='')
+        logging.info("Verifying all docs have timestamp...")
         _cnt = self._target_col.find({'_timestamp': {'$exists': True}}).count()
         _cnt_all = self._target_col.count()
         if _cnt == _cnt_all:
-            print('{}=={}...OK'.format(_cnt, _cnt_all))
+            logging.info('{}=={}...OK'.format(_cnt, _cnt_all))
         else:
-            print('ERROR!!!\n\t Should be "{}", but get "{}"'.format(_cnt_all, _cnt))
+            logging.info('ERROR!!!\n\t Should be "{}", but get "{}"'.format(_cnt_all, _cnt))
 
-        print("Verifying all new docs have updated timestamp...", end='')
+        logging.info("Verifying all new docs have updated timestamp...")
         cur = self._target_col.find({'_timestamp': {'$gte': _timestamp}}, projection={})
         _li1 = sorted(changes['add'] + [x['_id'] for x in changes['update']])
         _li2 = sorted([x['_id'] for x in cur])
         if _li1 == _li2:
-            print("{}=={}...OK".format(len(_li1), len(_li2)))
+            logging.info("{}=={}...OK".format(len(_li1), len(_li2)))
         else:
-            print('ERROR!!!\n\t Should be "{}", but get "{}"'.format(len(_li1), len(_li2)))
+            logging.info('ERROR!!!\n\t Should be "{}", but get "{}"'.format(len(_li1), len(_li2)))
 
     def _get_cleaned_timestamp(self, timestamp):
         if is_str(timestamp):
@@ -160,13 +160,13 @@ class GeneDocSyncer:
         if compress:
             outfile += '.bz'
             import bz2
-        print('Backing up timestamps into "{}"...'.format(outfile))
+        logging.info('Backing up timestamps into "{}"...'.format(outfile))
         t0 = time.time()
         file_handler = bz2.BZ2File if compress else open
         with file_handler(outfile, 'w') as out_f:
             for doc in doc_feeder(self._target_col, step=100000, fields=['_timestamp']):
                 out_f.write('{}\t{}\n'.format(doc['_id'], doc['_timestamp'].strftime('%Y%m%d')))
-        print("Done.", timesofar(t0))
+        logging.info("Done.", timesofar(t0))
         return outfile
 
     def get_timestamp_stats(self, returnresult=False, verbose=True):
@@ -175,7 +175,7 @@ class GeneDocSyncer:
         res = sorted([(x['_id'], x['count']) for x in res['result']], reverse=True)
         if verbose:
             for ts, cnt in res:
-                print('{}\t{}'.format(ts.strftime('%Y%m%d'), cnt))
+                logging.info('{}\t{}'.format(ts.strftime('%Y%m%d'), cnt))
         if returnresult:
             return res
 
@@ -224,7 +224,7 @@ def get_changes_stats(changes):
             v = changes[k]
             if isinstance(v, (list, dict)):
                 v = len(v)
-            print("{}: {}".format(k, v))
+            logging.info("{}: {}".format(k, v))
     _update = changes['update']
     if _update:
         attrs = dict(add=set(), delete=set(), update=set())
@@ -232,8 +232,8 @@ def get_changes_stats(changes):
             for k in attrs.keys():
                 if _d[k]:
                     attrs[k] |= set(_d[k])
-        #pprint(attrs)
-        print('\n'.join(["\t{}: {} {}".format(k, len(attrs[k]), ', '.join(sorted(attrs[k]))) for k in attrs]))
+        #plogging.info(attrs)
+        logging.info('\n'.join(["\t{}: {} {}".format(k, len(attrs[k]), ', '.join(sorted(attrs[k]))) for k in attrs]))
 
 
 def diff_two(col_1, col_2, use_parallel=True):
@@ -248,9 +248,9 @@ def backup_timestamp_main():
         sc = GeneDocSyncer(config)
         bkfile = sc.backup_timestamp()
         bkfile_key = 'genedoc_timestamp_bk/' + bkfile
-        print('Saving to S3: "{}"... '.format(bkfile_key), end='')
+        logging.info('Saving to S3: "{}"... '.format(bkfile_key))
         send_s3_file(bkfile, bkfile_key)
-        print('Done.')
+        logging.info('Done.')
         os.remove(bkfile)
 
 
@@ -274,24 +274,24 @@ def main():
     sc = GeneDocSyncer(config)
     new_src_li = sc.get_new_source_list()
     if not new_src_li:
-        print("No new source collections need to update. Abort now.")
+        logging.info("No new source collections need to update. Abort now.")
         return
 
-    print("Found {} new source collections need to update:".format(len(new_src_li)))
-    print("\n".join(['\t' + x for x in new_src_li]))
+    logging.info("Found {} new source collections need to update:".format(len(new_src_li)))
+    logging.info("\n".join(['\t' + x for x in new_src_li]))
 
     if no_confirm or ask('Continue?') == 'Y':
         logfile = 'databuild_sync_{}_{}.log'.format(config, time.strftime('%Y%m%d'))
-        log_f, logfile = safewfile(os.path.join(LOG_FOLDER, logfile), prompt=False, default='O')
-        sys.stdout = LogPrint(log_f, timestamp=True)
+        logfile = os.path.join(LOG_FOLDER, logfile)
+        setup_logfile(logfile)
 
         for src in new_src_li:
             t0 = time.time()
-            print("Current source collection:", src)
+            logging.info("Current source collection:", src)
             ts = _get_timestamp(src, as_str=True)
-            print("Calculating changes... ")
+            logging.info("Calculating changes... ")
             changes = sc.get_changes(src, use_parallel=use_parallel)
-            print("Done")
+            logging.info("Done")
             get_changes_stats(changes)
             if no_confirm or ask("Continue to save changes...") == 'Y':
                 if config == 'genedoc_mygene':
@@ -300,16 +300,16 @@ def main():
                     dumpfile = 'changes_{}_allspecies.pyobj'.format(ts)
                 dump(changes, dumpfile)
                 dumpfile_key = 'genedoc_changes/' + dumpfile
-                print('Saving to S3: "{}"... '.format(dumpfile_key), end='')
+                logging.info('Saving to S3: "{}"... '.format(dumpfile_key))
                 send_s3_file(dumpfile, dumpfile_key)
-                print('Done.')
+                logging.info('Done.')
                 #os.remove(dumpfile)
 
             if no_confirm or ask("Continue to apply changes...") == 'Y':
                 sc.apply_changes(changes)
                 sc.verify_changes(changes)
-            print('=' * 20)
-            print("Finished.", timesofar(t0))
+            logging.info('=' * 20)
+            logging.info("Finished.", timesofar(t0))
 
 
 if __name__ == '__main__':

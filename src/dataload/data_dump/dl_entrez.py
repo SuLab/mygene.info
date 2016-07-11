@@ -24,9 +24,10 @@ from biothings.utils.common import ask, timesofar, safewfile
 
 src_path = os.path.split(os.path.split(os.path.split(os.path.abspath(__file__))[0])[0])[0]
 sys.path.append(src_path)
-from utils.common import LogPrint, rmdashfr
+
+from utils.common import setup_logfile, rmdashfr, hipchat_msg
 from utils.mongo import get_src_dump
-from config import DATA_ARCHIVE_ROOT, ASCP_ROOT, ARCHIVE_DATA
+from config import DATA_ARCHIVE_ROOT, ASCP_ROOT, ARCHIVE_DATA, logger as logging
 
 
 TIMESTAMP = time.strftime('%Y%m%d')
@@ -144,20 +145,20 @@ def download(path, no_confirm=False):
                     if no_confirm or ask('Remove existing file "%s"?' % filename) == 'Y':
                         os.remove(filename)
                     else:
-                        print("Skipped!")
+                        logging.info("Skipped!")
                         continue
-                print('Downloading "%s"...' % f)
+                logging.info('Downloading "%s"...' % f)
                 #cmdline = 'wget %s' % url
                 #cmdline = 'axel -a -n 5 %s' % url   #faster than wget using 5 connections
                 cmdline = _get_ascp_cmdline(url)
                 return_code = os.system(cmdline)
                 #return_code = 0;print cmdline    #for testing
                 if return_code == 0:
-                    print("Success.")
+                    logging.info("Success.")
                 else:
-                    print("Failed with return code (%s)." % return_code)
+                    logging.info("Failed with return code (%s)." % return_code)
                     out.append((url, return_code))
-                print("=" * 50)
+                logging.info("=" * 50)
     finally:
         os.chdir(orig_path)
 
@@ -216,9 +217,8 @@ def main():
         if not (no_confirm or len(os.listdir(DATA_FOLDER)) == 0 or ask('DATA_FOLDER (%s) is not empty. Continue?' % DATA_FOLDER) == 'Y'):
             sys.exit()
 
-    log_f, logfile = safewfile(os.path.join(DATA_FOLDER, 'entrez_dump.log'), prompt=(not no_confirm), default='O')
-    sys.stdout = LogPrint(log_f, timestamp=True)
-    sys.stderr = sys.stdout
+    logfile = os.path.join(DATA_FOLDER, 'entrez_dump.log')
+    setup_logfile(logfile)
 
     #mark the download starts
     src_dump = get_src_dump()
@@ -229,20 +229,14 @@ def main():
            'status': 'downloading'}
     src_dump.save(doc)
     t0 = time.time()
-    try:
-        download(DATA_FOLDER, no_confirm=no_confirm)
-        t_download = timesofar(t0)
-        t1 = time.time()
-        #mark parsing starts
-        src_dump.update({'_id': 'entrez'}, {'$set': {'status': 'parsing'}})
-        parse_gbff(DATA_FOLDER)
-        t_parsing = timesofar(t1)
-        t_total = timesofar(t0)
-    except Exception as e:
-        print(e)
-        raise
-    finally:
-        sys.stdout.close()
+    download(DATA_FOLDER, no_confirm=no_confirm)
+    t_download = timesofar(t0)
+    t1 = time.time()
+    #mark parsing starts
+    src_dump.update({'_id': 'entrez'}, {'$set': {'status': 'parsing'}})
+    parse_gbff(DATA_FOLDER)
+    t_parsing = timesofar(t1)
+    t_total = timesofar(t0)
 
     #mark the download finished successfully
     _updates = {
@@ -259,4 +253,11 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+        hipchat_msg('"entrez" downloader finished successfully',color='green')
+    except Exception as e:
+        import traceback
+        logging.error("Error while downloading: %s" % traceback.format_exc())
+        hipchat_msg('"entrez" downloader failed: %s' % e,color='red')
+        sys.exit(255)

@@ -61,6 +61,10 @@ class LogPrint:
     def fileno(self):
         return self.log_f.fileno()
 
+def setup_logfile(logfile):
+    fh = logging.FileHandler(logfile)
+    fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    logging.getLogger().addHandler(fh)
 
 def addsuffix(filename, suffix, noext=False):
     '''Add suffix in front of ".extension", so keeping the same extension.

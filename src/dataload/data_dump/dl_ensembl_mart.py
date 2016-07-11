@@ -29,11 +29,11 @@ from biothings.utils.common import ask, timesofar, safewfile
 
 src_path = os.path.split(os.path.split(os.path.split(os.path.abspath(__file__))[0])[0])[0]
 sys.path.append(src_path)
-from utils.common import LogPrint, rmdashfr
+
+from utils.common import setup_logfile, rmdashfr, hipchat_msg
 from utils.mongo import get_src_dump
 from utils.dataload import tab2list
-from config import DATA_ARCHIVE_ROOT, ARCHIVE_DATA
-
+from config import DATA_ARCHIVE_ROOT, ARCHIVE_DATA, logger as logging
 
 
 ENSEMBL_FOLDER = os.path.join(DATA_ARCHIVE_ROOT, 'by_resources/ensembl')
@@ -95,20 +95,20 @@ def get_all_species(release):
     import tempfile
     outfile = tempfile.mktemp() + '.txt.gz'
     try:
-        print('Downloading "species.txt.gz"...', end=' ')
+        logging.info('Downloading "species.txt.gz"...')
         out_f = open(outfile, 'wb')
         ftp = FTP('ftp.ensembl.org')
         ftp.login()
         species_file = '/pub/release-%s/mysql/ensembl_production_%s/species.txt.gz' % (release, release)
         ftp.retrbinary("RETR " + species_file, out_f.write)
         out_f.close()
-        print('Done.')
+        logging.info('Done.')
 
         #load saved file
-        print('Parsing "species.txt.gz"...', end=' ')
+        logging.info('Parsing "species.txt.gz"...')
         species_li = tab2list(outfile, (1, 2, 7), header=0)   # db_name,common_name,taxid
         species_li = [x[:-1] + [_to_int(x[-1])] for x in species_li]
-        print('Done.')
+        logging.info('Done.')
     finally:
         os.remove(outfile)
         pass
@@ -189,7 +189,7 @@ class BioMart(object):
         out_f, outfile = safewfile(outfile, prompt=(not self.no_confirm), default='O')
         if header:
             out_f.write('\t'.join(header) + '\n')
-        print('Dumping "%s"...' % os.path.split(outfile)[1])
+        logging.info('Dumping "%s"...' % os.path.split(outfile)[1])
         for species in self.species_li:
             dataset = self.get_dataset_name(species)
             taxid = species[2]
@@ -197,13 +197,13 @@ class BioMart(object):
                 continue
             xml = self._make_query_xml(dataset, attributes=attributes, filters=filters)
             if debug:
-                print(xml)
+                logging.info(xml)
             try:
                 con = self.query_mart(xml)
             except MartException:
                 import traceback
                 err_msg = traceback.format_exc()
-                print(species[0], err_msg)
+                logging.error("%s %s" % (species[0], err_msg))
                 continue
             cnt = 0
             for line in con.split('\n'):
@@ -211,9 +211,9 @@ class BioMart(object):
                     out_f.write(str(taxid) + '\t' + line + '\n')
                     cnt += 1
                     cnt_all += 1
-            print(species[0], cnt)
+            logging.info("%s %s" % (species[0], cnt))
         out_f.close()
-        print("Total: %d" % cnt_all)
+        logging.info("Total: %d" % cnt_all)
 
     def get_gene__main(self, outfile, debug=False):
         header = ['taxonomy_id',
@@ -286,58 +286,20 @@ class BioMart(object):
         self._fetch_data(outfile, attributes, filters, header=header, debug=debug)
 
 
-def main():
-    if len(sys.argv) == 2 and sys.argv[1] == 'check':
-        print("Checking latest mart_version:\t", end=' ')
-        mart_version = chk_latest_mart_version()
-        print(mart_version)
-        return
 
-    if len(sys.argv) > 1:
-        mart_version = sys.argv[1]
-    else:
-        print("Checking latest mart_version:\t", end=' ')
-        mart_version = chk_latest_mart_version()
-        print(mart_version)
-
-    BM = BioMart()
-    BM.species_li = get_all_species(mart_version)
-    if ARCHIVE_DATA:
-        DATA_FOLDER = os.path.join(ENSEMBL_FOLDER, mart_version)
-    else:
-        DATA_FOLDER = os.path.join(ENSEMBL_FOLDER,"latest")
-        rmdashfr(DATA_FOLDER)
-
-    if not os.path.exists(DATA_FOLDER):
-        os.makedirs(DATA_FOLDER)
-    else:
-        if not (len(os.listdir(DATA_FOLDER)) == 0 or ask('DATA_FOLDER (%s) is not empty. Continue?' % DATA_FOLDER) == 'Y'):
-            return
-    log_f, logfile = safewfile(os.path.join(DATA_FOLDER, 'ensembl_mart_%s.log' % mart_version))
-    sys.stdout = LogPrint(log_f, timestamp=True)
-
-    BM.get_gene__main(os.path.join(DATA_FOLDER, 'gene_ensembl__gene__main.txt'))
-    BM.get_translation__main(os.path.join(DATA_FOLDER, 'gene_ensembl__translation__main.txt'))
-    BM.get_xref_entrezgene(os.path.join(DATA_FOLDER, 'gene_ensembl__xref_entrezgene__dm.txt'))
-
-    BM.get_profile(os.path.join(DATA_FOLDER, 'gene_ensembl__prot_profile__dm.txt'))
-    BM.get_interpro(os.path.join(DATA_FOLDER, 'gene_ensembl__prot_interpro__dm.txt'))
-    sys.stdout.close()
-
-
-def main_cron():
-    no_confirm = True   # set it to True for running this script automatically without intervention.
+def main_cron(no_confirm=True):
+    '''set no_confirm to True for running this script automatically
+       without intervention.'''
 
     src_dump = get_src_dump()
-    print("Checking latest mart_version:\t", end=' ')
     mart_version = chk_latest_mart_version()
-    print(mart_version)
+    logging.info("Checking latest mart_version:\t%s" % mart_version)
 
     doc = src_dump.find_one({'_id': 'ensembl'})
     if doc and 'release' in doc and mart_version <= doc['release']:
         data_file = os.path.join(doc['data_folder'], 'gene_ensembl__gene__main.txt')
         if os.path.exists(data_file):
-            print("No newer release found. Abort now.")
+            logging.info("No newer release found. Abort now.")
             sys.exit(0)
 
     DATA_FOLDER = os.path.join(ENSEMBL_FOLDER, str(mart_version))
@@ -347,8 +309,8 @@ def main_cron():
         if not (no_confirm or len(os.listdir(DATA_FOLDER)) == 0 or ask('DATA_FOLDER (%s) is not empty. Continue?' % DATA_FOLDER) == 'Y'):
             sys.exit(0)
 
-    log_f, logfile = safewfile(os.path.join(DATA_FOLDER, 'ensembl_mart_%s.log' % mart_version), prompt=(not no_confirm), default='O')
-    sys.stdout = LogPrint(log_f, timestamp=True)
+    logfile = os.path.join(DATA_FOLDER, 'ensembl_mart_%s.log' % mart_version)
+    setup_logfile(logfile)
 
     #mark the download starts
     doc = {'_id': 'ensembl',
@@ -383,4 +345,11 @@ def main_cron():
 
 
 if __name__ == '__main__':
-    main_cron()
+    try:
+        main_cron()
+        hipchat_msg('"ensembl" downloader finished successfully',color='green')
+    except Exception as e:
+        import traceback
+        logging.error("Error while downloading: %s" % traceback.format_exc())
+        hipchat_msg('"ensembl" downloader failed: %s' % e,color='red')
+        sys.exit(255)

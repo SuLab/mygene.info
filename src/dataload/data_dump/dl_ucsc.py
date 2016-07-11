@@ -27,9 +27,10 @@ from biothings.utils.common import timesofar, safewfile
 
 src_path = os.path.split(os.path.split(os.path.split(os.path.abspath(__file__))[0])[0])[0]
 sys.path.append(src_path)
-from utils.common import LogPrint
+from utils.common import setup_logfile, hipchat_msg
 from utils.mongo import get_src_dump
-from config import DATA_ARCHIVE_ROOT
+from config import DATA_ARCHIVE_ROOT, logger as logging
+
 
 
 timestamp = time.strftime('%Y%m%d')
@@ -122,10 +123,10 @@ def download(download_list=None, no_confirm=False):
                 if not os.path.exists(path):
                     os.makedirs(path)
                 os.chdir(path)
-                print('Downloading "%s"...' % file_path, end='')
+                logging.info('Downloading "%s"...' % file_path)
                 url = 'ftp://{}/{}'.format(FTP_SERVER, file_path)
                 download_ftp_file(url, os.path.join(DATA_FOLDER, file_path))
-                print("done.")
+                logging.info("done.")
                 #cmdline = 'wget -N %s' % url
                 ##cmdline = 'axel -a -n 5 %s' % url   #faster than wget using 5 connections
                 #return_code = os.system(cmdline)
@@ -134,7 +135,7 @@ def download(download_list=None, no_confirm=False):
                 #else:
                 #    print cmdline
                 #    print "Failed with return code (%s)." % return_code
-                print("=" * 50)
+                logging.info("=" * 50)
             return len(download_list)
         else:
             return 0
@@ -142,21 +143,20 @@ def download(download_list=None, no_confirm=False):
         os.chdir(orig_path)
 
 
-if __name__ == '__main__':
-    no_confirm = True   # set it to True for running this script automatically without intervention.
+def main(no_confirm=True):
 
     src_dump = get_src_dump()
     download_list = get_file_list_for_download()
     if len(download_list) == 0:
-        print("No newer file found. Abort now.")
+        logging.info("No newer file found. Abort now.")
         sys.exit(0)
 
     doc = src_dump.find_one({'_id': 'ucsc'})
     if not os.path.exists(DATA_FOLDER):
         os.makedirs(DATA_FOLDER)
 
-    log_f, logfile = safewfile(os.path.join(DATA_FOLDER, 'ucsc_dump.log'), prompt=(not no_confirm), default='O')
-    sys.stdout = LogPrint(log_f, timestamp=True)
+    logfile = os.path.join(DATA_FOLDER, 'ucsc_dump.log')
+    setup_logfile(logfile)
 
     # mark the download starts
     doc = {'_id': 'ucsc',
@@ -167,10 +167,7 @@ if __name__ == '__main__':
            'status': 'downloading'}
     src_dump.save(doc)
     t0 = time.time()
-    try:
-        download(download_list, no_confirm)
-    finally:
-        sys.stdout.close()
+    download(download_list, no_confirm)
     # mark the download finished successfully
     _updates = {
         'status': 'success',
@@ -178,3 +175,13 @@ if __name__ == '__main__':
         'pending_to_upload': True    # a flag to trigger data uploading
     }
     src_dump.update({'_id': 'ucsc'}, {'$set': _updates})
+
+if __name__ == '__main__':
+    try:
+        main()
+        hipchat_msg('"ucsc" downloader finished successfully',color='green')
+    except Exception as e:
+        import traceback
+        logging.error("Error while downloading: %s" % traceback.format_exc())
+        hipchat_msg('"ucsc" downloader failed: %s' % e,color='red')
+        sys.exit(255)
