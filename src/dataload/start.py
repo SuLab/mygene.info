@@ -1,8 +1,9 @@
-import sys
+import sys, os
 import os.path
 import dataload
 import time
 import random
+import importlib
 
 src_path = os.path.split(os.path.split(os.path.abspath(__file__))[0])[0]
 sys.path.append(src_path)
@@ -16,12 +17,24 @@ def main(source):
         python -m dataload/start pharmgkb
 
     '''
-    if source not in dataload.__sources_dict__:
-        raise ValueError('Unknown source "%s". Should be one of %s' % (source, dataload.__sources_dict__.keys()))
+    # discover sources
+    try:
+        src_mod = importlib.import_module("dataload.sources.%s.upload" % source)
+        mods = []
+        for pyfile in os.listdir(src_mod.__path__[0]):
+            if pyfile.startswith("_"):
+                continue
+            if not pyfile.endswith(".py"):
+                continue
+            mods.append("%s.upload.%s" % (source, pyfile.replace(".py","")))
 
-    dataload.__sources__ = dataload.__sources_dict__[source]
-    dataload.register_sources()
-    dataload.load_all()
+        # alphanum sorted, in case sub-sources have dependencies
+        dataload.__sources__ = sorted(mods)
+        dataload.register_sources()
+        dataload.load_all()
+
+    except ImportError as e:
+        raise ValueError('Unknown source "%s" (%s)' % (source,e))
 
 
 def main_test(src):

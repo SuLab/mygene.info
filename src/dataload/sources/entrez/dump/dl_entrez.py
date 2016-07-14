@@ -29,6 +29,8 @@ from utils.common import setup_logfile, rmdashfr, hipchat_msg
 from utils.mongo import get_src_dump
 from config import DATA_ARCHIVE_ROOT, ASCP_ROOT, ARCHIVE_DATA, logger as logging
 
+import glob
+from parse_refseq_gbff import main as parse_refseq_gbff
 
 TIMESTAMP = time.strftime('%Y%m%d')
 if ARCHIVE_DATA:
@@ -166,12 +168,10 @@ def download(path, no_confirm=False):
 
 
 def parse_gbff(path):
-    import glob
-    from parse_refseq_gbff import main
     refseq_folder = os.path.join(path, 'refseq')
     gbff_files = glob.glob(os.path.join(refseq_folder, '*.rna.gbff.gz'))
-    assert len(gbff_files) >= 15, 'Missing "*.gbff.gz" files? Found %d:\n%s' % (len(gbff_files), '\n'.join(gbff_files))
-    main(refseq_folder)
+    assert len(gbff_files) >= 15, 'Missing "*.gbff.gz" files? Found %d in %s:\n%s' % (len(gbff_files), refseq_folder, '\n'.join(gbff_files))
+    parse_refseq_gbff(refseq_folder)
 
 
 def redo_parse_gbff(path):

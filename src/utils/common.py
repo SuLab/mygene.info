@@ -320,14 +320,12 @@ class DateTimeJSONEncoder(json.JSONEncoder):
 
 def rmdashfr(top):
     '''Recursively delete dirs and files from "top" directory, then delete "top" dir'''
-    print("top: %s" % repr(top))
     for root, dirs, files in os.walk(top, topdown=False):
         for name in files:
             os.remove(os.path.join(root,name))
         for name in dirs:
             os.rmdir(os.path.join(root,name))
     try:
-        print("ls: %s" % repr([i for i in os.walk(top)]))
         os.rmdir(top)
     except FileNotFoundError:
         # top did not exist, silently ignore

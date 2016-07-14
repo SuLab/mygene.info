@@ -15,41 +15,7 @@ from config import DATA_SRC_DATABASE, DATA_SRC_MASTER_COLLECTION
 from utils.dataload import list2dict, merge_struct
 
 
-__sources_dict__ = {
-    'entrez': [
-        'entrez.entrez_gene',
-        'entrez.entrez_homologene',
-        'entrez.entrez_genesummary',
-        'entrez.entrez_accession',
-        'entrez.entrez_refseq',
-        'entrez.entrez_unigene',
-        'entrez.entrez_go',
-        'entrez.entrez_ec',
-        'entrez.entrez_retired',
-        'entrez.entrez_generif',
-        'entrez.entrez_genomic_pos',
-    ],
-    'ensembl': [
-        'ensembl.ensembl_gene',
-        'ensembl.ensembl_acc',
-        'ensembl.ensembl_genomic_pos',
-        'ensembl.ensembl_prosite',
-        'ensembl.ensembl_interpro',
-        'ensembl.ensembl_pfam'
-    ],
-    'uniprot': [
-        'uniprot',
-        'uniprot.uniprot_pdb',
-        # 'uniprot.uniprot_ipi',   # IPI is now discontinued, last update is still in the db, but won't be updated.
-        'uniprot.uniprot_pir'
-    ],
-    'pharmgkb': ['pharmgkb'],
-    'reporter': ['reporter'],
-    'ucsc': ['ucsc.ucsc_exons'],
-    'cpdb': ['cpdb'],
-    'reagent': ['reagent'],
-}
-
+__sources_dict__ = {}
 __sources__ = None   # should be a list defined at runtime
 
 conn = get_src_conn()
@@ -239,21 +205,28 @@ class GeneDocSource(dict):
 
 
 def register_sources():
-    for src in __sources__:
-        src_m = importlib.import_module('dataload.sources.' + src)
-        metadata = src_m.__metadata__
-        name = src + '_doc'
-        metadata['load_genedoc'] = src_m.load_genedoc
-        metadata['get_mapping'] = src_m.get_mapping
-        if metadata.get('ENTREZ_GENEDOC_ROOT', False):
-            metadata['get_geneid_d'] = src_m.get_geneid_d
-        if metadata.get('ENSEMBL_GENEDOC_ROOT', False):
-            metadata['get_mapping_to_entrez'] = src_m.get_mapping_to_entrez
-        src_cls = type(name, (GeneDocSource,), metadata)
-        # manually propagate db attr
-        src_cls.db = conn[src_cls.__database__]
-        doc_register[name] = src_cls
-        conn.register(src_cls)
+    for src in [s for s in __sources__]: # copy as we'll change in-place
+        try:
+            src_m = importlib.import_module('dataload.sources.' + src)
+            metadata = src_m.__metadata__
+            name = src + '_doc'
+            metadata['load_genedoc'] = src_m.load_genedoc
+            metadata['get_mapping'] = src_m.get_mapping
+            if metadata.get('ENTREZ_GENEDOC_ROOT', False):
+                metadata['get_geneid_d'] = src_m.get_geneid_d
+            if metadata.get('ENSEMBL_GENEDOC_ROOT', False):
+                metadata['get_mapping_to_entrez'] = src_m.get_mapping_to_entrez
+            src_cls = type(name, (GeneDocSource,), metadata)
+            # manually propagate db attr
+            src_cls.db = conn[src_cls.__database__]
+            doc_register[name] = src_cls
+            conn.register(src_cls)
+
+        except AttributeError as e:
+            print("Skip %s, can't register: %s" % (src,e))
+            # clean src dict to make sure we won't use this one later
+            __sources__.remove(src)
+            continue
 
 
 # register_sources()
@@ -263,8 +236,12 @@ def get_src(src):
 
 
 def load_src(src, **kwargs):
-    _src = doc_register[src + '_doc']()
-    _src.load(**kwargs)
+    try:
+        _src = doc_register[src + '_doc']()
+        _src.load(**kwargs)
+    except Exception as e:
+        print(doc_register)
+        raise
 
 
 def update_mapping(src):
